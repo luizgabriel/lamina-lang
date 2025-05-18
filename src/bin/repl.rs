@@ -1,10 +1,8 @@
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{Parser, error::Rich};
 use lamina_lang::lexer::lexer;
-use std::{
-    fmt::Display,
-    io::{self, Write},
-};
+use rustyline::DefaultEditor;
+use std::fmt::Display;
 
 fn err_to_report<'a>(e: &Rich<'a, impl Display>) -> Report<'a, ((), std::ops::Range<usize>)> {
     Report::build(ReportKind::Error, ((), e.span().into_range()))
@@ -18,27 +16,29 @@ fn err_to_report<'a>(e: &Rich<'a, impl Display>) -> Report<'a, ((), std::ops::Ra
         .finish()
 }
 
+const HISTORY_PATH: &str = ".lamina_history";
+
 fn main() -> anyhow::Result<()> {
-    println!("Lamina REPL - Type your code below. Type 'exit' to quit.");
-    let stdin = io::stdin();
+    println!("Lamina Lang - REPL");
+    let mut rl = DefaultEditor::new()?;
+    let _ = rl.load_history(HISTORY_PATH);
+
     loop {
-        print!("> ");
-        io::stdout().flush()?;
-        let mut input = String::new();
-        stdin.read_line(&mut input)?;
+        let Ok(line) = rl.readline("> ") else {
+            break;
+        };
 
-        if input.trim() == "exit" {
-            return Ok(());
-        }
+        let line = line.trim();
+        rl.add_history_entry(line)?;
 
-        let (result, errors) = lexer().parse(&input).into_output_errors();
-
+        let (result, errors) = lexer().parse(line).into_output_errors();
         if let Some(tokens) = result {
             println!("{:#?}", tokens);
         }
-
         errors
             .iter()
-            .try_for_each(|err| err_to_report(err).print(Source::from(&input)))?;
+            .try_for_each(|err| err_to_report(err).print(Source::from(line)))?;
     }
+    rl.save_history(HISTORY_PATH)?;
+    Ok(())
 }

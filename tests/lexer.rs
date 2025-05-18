@@ -70,19 +70,8 @@ fn test_parens() {
 fn test_error_output() {
     let src = "let @ foo";
     let result = lexer().parse(src).into_result();
-    match result {
-        Ok(_) => panic!("Expected an error for invalid input"),
-        Err(errors) => {
-            assert!(!errors.is_empty(), "Expected at least one error");
-            let first = &errors[0];
-            let snapshot_str = format!("span: {:?}\nmessage: {}", first.span(), first);
-            snapshot!(
-                snapshot_str,
-                r#"
-span: 4..5
-message: found '@' expected identifier, '=', '+', '*', non-zero digit, '0', token tree, or end of input
-"#
-            );
-        }
-    }
+    snapshot!(
+        result.unwrap_err().first().unwrap(),
+        r#"found ''@'' at 4..5 expected identifier, ''='', ''+'', ''*'', non-zero digit, ''0'', token tree, or end of input"#
+    );
 }
