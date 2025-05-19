@@ -108,7 +108,15 @@ impl Display for SyntaxTree<'_> {
             SyntaxNode::Num(n) => write!(f, "{}", n),
             SyntaxNode::Bool(b) => write!(f, "{}", b),
             SyntaxNode::FnApp { lhs, rhs } => write!(f, "({} {})", lhs.0, rhs.0),
-            SyntaxNode::OpApp { op, lhs, rhs } => write!(f, "({} {} {})", op.0, lhs.0, rhs.0),
+            SyntaxNode::OpApp { op, lhs, rhs } => write!(f, "(({}) {} {})", op.0, lhs.0, rhs.0),
+            SyntaxNode::Block { body } => write!(
+                f,
+                "{{ {} }}",
+                body.iter()
+                    .map(|b| b.0.to_string())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
             _ => todo!(),
         }
     }
@@ -156,7 +164,7 @@ pub fn parser<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned
         let parens = expr
             .clone()
             .delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')')))
-            .labelled("parens");
+            .labelled("parenthesized expression");
 
         let atom = choice((parens, block, literal(), ident()));
 
