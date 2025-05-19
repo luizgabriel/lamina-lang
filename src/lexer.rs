@@ -41,33 +41,40 @@ trait_set! {
 }
 
 pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
-    let keyword = text::ident().map(|s| match s {
-        "let" => Token::Let,
-        "in" => Token::In,
-        "fn" => Token::Fn,
-        "true" => Token::True,
-        "false" => Token::False,
-        s => Token::Ident(s),
-    });
+    let keyword = text::ident()
+        .map(|s| match s {
+            "let" => Token::Let,
+            "in" => Token::In,
+            "fn" => Token::Fn,
+            "true" => Token::True,
+            "false" => Token::False,
+            s => Token::Ident(s),
+        })
+        .labelled("keyword/identifier");
 
-    let ctrl = one_of("(){}[];,").map(Token::Ctrl);
+    let ctrl = one_of("(){}[];,")
+        .map(Token::Ctrl)
+        .labelled("control character");
 
     let op = one_of("+*-/!=<|>&^")
         .repeated()
         .at_least(1)
         .to_slice()
-        .map(Token::Operator);
+        .map(Token::Operator)
+        .labelled("operator");
 
     let num = text::int(10)
         .then(just('.').then(text::digits(10)).or_not())
         .to_slice()
         .from_str()
         .unwrapped()
-        .map(Token::Num);
+        .map(Token::Num)
+        .labelled("number");
 
     let comment = just("#")
         .then(any().and_is(just('\n').not()).repeated())
-        .padded();
+        .padded()
+        .labelled("comment");
 
     let token = choice((num, ctrl, op, keyword));
 

@@ -85,7 +85,7 @@ fn test_error_output() {
     let result = lexer().parse(src).into_result();
     snapshot!(
         result.unwrap_err().first().unwrap(),
-        r#"found ''@'' at 4..5 expected ''#'', non-zero digit, ''0'', ''('', '')'', ''{'', ''}'', ''['', '']'', '';'', '','', ''+'', ''*'', ''-'', ''/'', ''!'', ''='', ''<'', ''|'', ''>'', ''&'', ''^'', or identifier"#
+        r#"found ''@'' at 4..5 expected ''#'', comment, number, control character, operator, or keyword/identifier"#
     );
 }
 
