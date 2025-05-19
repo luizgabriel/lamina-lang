@@ -101,6 +101,19 @@ impl<'src> SyntaxTree<'src> {
     }
 }
 
+impl Display for SyntaxTree<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            SyntaxNode::Var(name) => write!(f, "{}", name),
+            SyntaxNode::Num(n) => write!(f, "{}", n),
+            SyntaxNode::Bool(b) => write!(f, "{}", b),
+            SyntaxNode::FnApp { lhs, rhs } => write!(f, "({} {})", lhs.0, rhs.0),
+            SyntaxNode::OpApp { op, lhs, rhs } => write!(f, "({} {} {})", op.0, lhs.0, rhs.0),
+            _ => todo!(),
+        }
+    }
+}
+
 trait_set! {
     pub trait TokenInput<'src> = chumsky::input::ValueInput<'src, Token = Token<'src>, Span = Span>;
     pub trait SyntaxParser<'src, I: TokenInput<'src>, T> = chumsky::Parser<'src, I, T, extra::Err<Rich<'src, Token<'src>, Span>>> + Clone;

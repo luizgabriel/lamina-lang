@@ -42,8 +42,9 @@ fn main() -> anyhow::Result<()> {
         let line = line.trim();
         rl.add_history_entry(line)?;
 
-        let ast = lex_and_parse(line);
-        println!("{:#?}", ast);
+        if let Ok(ast) = lex_and_parse(line) {
+            println!("{}", ast);
+        }
     }
     rl.save_history(HISTORY_PATH)?;
     Ok(())
