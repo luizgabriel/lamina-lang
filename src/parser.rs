@@ -182,15 +182,30 @@ pub fn parser<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned
 pub type ErrorReport<'a> = Report<'a, ((), std::ops::Range<usize>)>;
 
 pub fn errors_to_report<'a>(errors: &[Rich<'a, impl Display>]) -> ErrorReport<'a> {
-    let (first, rest) = errors.split_first().expect("Expected at least one error");
+    let error = errors.first().expect("Expected at least one error");
 
-    Report::build(ReportKind::Error, ((), first.span().into_range()))
-        .with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
-        .with_message(first.to_string())
-        .with_labels(rest.iter().map(|e| {
-            Label::new(((), e.span().into_range()))
-                .with_message(e.reason().to_string())
+    let main_label = Label::new(((), error.span().into_range()))
+        .with_message(
+            error
+                .found()
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "end of input".to_string()),
+        )
+        .with_color(Color::Red);
+
+    let other_labels = error
+        .contexts()
+        .map(|(l, s)| (format!("while parsing this {l}"), *s))
+        .map(|(message, span)| {
+            Label::new(((), span.into_range()))
+                .with_message(message)
                 .with_color(Color::Red)
-        }))
+        })
+        .collect::<Vec<_>>();
+
+    Report::build(ReportKind::Error, ((), error.span().into_range()))
+        .with_message(error.to_string())
+        .with_label(main_label)
+        .with_labels(other_labels)
         .finish()
 }
