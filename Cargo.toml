@@ -1,13 +1,14 @@
 [package]
-name = "lamina-lang"
+name = "lamina_lang"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
 ariadne = "0.5.1"
-chumsky = "0.10.1"
+chumsky = { version = "0.10.1", features = ["memoization", "pratt"] }
 rustyline = "15.0.0"
+trait-set = "0.3.0"
 
 [dev-dependencies]
 k9 = "*"

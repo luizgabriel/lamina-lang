@@ -1,22 +1,33 @@
-use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{Parser, error::Rich};
-use lamina_lang::lexer::lexer;
+use ariadne::Source;
+use chumsky::{
+    Parser,
+    input::{Input, Stream},
+};
+use lamina_lang::{
+    lexer::lexer,
+    parser::{SyntaxTree, errors_to_report, parser},
+};
 use rustyline::DefaultEditor;
-use std::fmt::Display;
-
-fn err_to_report<'a>(e: &Rich<'a, impl Display>) -> Report<'a, ((), std::ops::Range<usize>)> {
-    Report::build(ReportKind::Error, ((), e.span().into_range()))
-        .with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
-        .with_message(e.to_string())
-        .with_label(
-            Label::new(((), e.span().into_range()))
-                .with_message(e.reason().to_string())
-                .with_color(Color::Red),
-        )
-        .finish()
-}
 
 const HISTORY_PATH: &str = ".lamina_history";
+
+fn lex_and_parse(line: &str) -> Result<SyntaxTree<'_>, ()> {
+    let source = Source::from(line);
+
+    let tokens = lexer()
+        .parse(line)
+        .into_result()
+        .map_err(|errors| errors_to_report(&errors).print(&source).unwrap())?;
+
+    let stream = Stream::from_iter(tokens).map((0..line.len()).into(), |(t, s)| (t, s));
+
+    let ast = parser()
+        .parse(stream)
+        .into_result()
+        .map_err(|errors| errors_to_report(&errors).print(&source).unwrap())?;
+
+    Ok(ast.0)
+}
 
 fn main() -> anyhow::Result<()> {
     println!("Lamina Lang - REPL");
@@ -31,13 +42,8 @@ fn main() -> anyhow::Result<()> {
         let line = line.trim();
         rl.add_history_entry(line)?;
 
-        let (result, errors) = lexer().parse(line).into_output_errors();
-        if let Some(tokens) = result {
-            println!("{:#?}", tokens);
-        }
-        errors
-            .iter()
-            .try_for_each(|err| err_to_report(err).print(Source::from(line)))?;
+        let ast = lex_and_parse(line);
+        println!("{:#?}", ast);
     }
     rl.save_history(HISTORY_PATH)?;
     Ok(())
