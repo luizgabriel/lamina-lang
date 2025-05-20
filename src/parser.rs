@@ -34,42 +34,56 @@ fn operator<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<&
         .labelled("operator")
 }
 
+fn block<'src, I: TokenInput<'src>>(
+    expr: impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>>,
+) -> impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>> {
+    expr.separated_by(just(Token::Ctrl(';')))
+        .allow_trailing()
+        .collect::<Vec<_>>()
+        .delimited_by(just(Token::Ctrl('{')), just(Token::Ctrl('}')))
+        .map_with(|s, e| (SyntaxTree::block(s), e.span()))
+        .labelled("block")
+}
+
+fn parens<'src, I: TokenInput<'src>>(
+    expr: impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>>,
+) -> impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>> {
+    expr.delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')')))
+        .labelled("parenthesized expression")
+}
+
+fn fn_def<'src, I: TokenInput<'src>>(
+    expr: impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>>,
+) -> impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>> {
+    let args = ident()
+        .labelled("argument")
+        .repeated()
+        .at_least(1)
+        .collect::<Vec<_>>();
+
+    just(Token::Fn)
+        .ignore_then(group((
+            ident().labelled("function name"),
+            args,
+            just(Token::Op("=")).ignore_then(expr.clone()),
+        )))
+        .map_with(|(name, args, body), e| (SyntaxTree::fn_def(name, args, body), e.span()))
+        .labelled("function definition")
+}
+
 pub fn parser<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>>
 {
     recursive(|expr| {
         // { <expr>; <expr>; <expr> }
-        let block = expr
-            .clone()
-            .separated_by(just(Token::Ctrl(';')))
-            .allow_trailing()
-            .collect::<Vec<_>>()
-            .delimited_by(just(Token::Ctrl('{')), just(Token::Ctrl('}')))
-            .map_with(|s, e| (SyntaxTree::block(s), e.span()))
-            .labelled("block");
+        let block = block(expr.clone());
 
         // (<expr>)
-        let parens = expr
-            .clone()
-            .delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')')))
-            .labelled("parenthesized expression");
-
-        let args = ident()
-            .labelled("argument")
-            .repeated()
-            .at_least(1)
-            .collect::<Vec<_>>();
+        let parens = parens(expr.clone());
 
         // fn <ident> <args> = <expr>
-        let fn_def = just(Token::Fn)
-            .ignore_then(group((
-                ident().labelled("function name"),
-                args,
-                just(Token::Op("=")).ignore_then(expr.clone()),
-            )))
-            .map_with(|(name, args, body), e| (SyntaxTree::fn_def(name, args, body), e.span()))
-            .labelled("function definition");
+        let fn_def = fn_def(expr.clone());
 
-        let atom = choice((parens, block, literal(), var(), fn_def));
+        let atom = choice((parens, block, fn_def, literal(), var()));
 
         atom.pratt((
             infix(left(10), empty(), |lhs, _, rhs, e| {
