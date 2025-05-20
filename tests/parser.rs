@@ -1,7 +1,10 @@
 use chumsky::input::Stream;
 use chumsky::prelude::*;
-use lamina_lang::{lexer::Span, parser::SyntaxTree};
-use lamina_lang::{lexer::lexer, parser::parser};
+use lamina_lang::{
+    lexer::lexer,
+    parser::parser,
+    syntax::{Span, SyntaxTree},
+};
 
 #[macro_export]
 macro_rules! assert_parse {

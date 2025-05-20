@@ -1,40 +1,6 @@
-use std::fmt::Display;
-
+use crate::syntax::{Spanned, Token};
 use chumsky::prelude::*;
-use chumsky::span::SimpleSpan;
 use trait_set::trait_set;
-
-pub type Span = SimpleSpan<usize>;
-pub type Spanned<T> = (T, Span);
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Token<'src> {
-    Num(f64),
-    Ident(&'src str),
-    Operator(&'src str),
-    Ctrl(char),
-    Let,
-    In,
-    Fn,
-    True,
-    False,
-}
-
-impl Display for Token<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Token::Num(n) => write!(f, "{}", n),
-            Token::Ident(s) => write!(f, "{}", s),
-            Token::Operator(s) => write!(f, "{}", s),
-            Token::Ctrl(c) => write!(f, "{}", c),
-            Token::Let => write!(f, "let"),
-            Token::In => write!(f, "in"),
-            Token::Fn => write!(f, "fn"),
-            Token::True => write!(f, "true"),
-            Token::False => write!(f, "false"),
-        }
-    }
-}
 
 trait_set! {
     pub trait Lexer<'src, T> = chumsky::Parser<'src, &'src str, T, extra::Err<Rich<'src, char>>>;

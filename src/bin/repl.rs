@@ -3,10 +3,7 @@ use chumsky::{
     Parser,
     input::{Input, Stream},
 };
-use lamina_lang::{
-    lexer::lexer,
-    parser::{SyntaxTree, errors_to_report, parser},
-};
+use lamina_lang::{error::errors_to_report, lexer::lexer, parser::parser, syntax::SyntaxTree};
 use rustyline::DefaultEditor;
 
 const HISTORY_PATH: &str = ".lamina_history";
