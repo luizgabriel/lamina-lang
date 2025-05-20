@@ -4,11 +4,11 @@ use std::fmt::Display;
 pub type Span = SimpleSpan<usize>;
 pub type Spanned<T> = (T, Span);
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token<'src> {
     Num(f64),
     Ident(&'src str),
-    Operator(&'src str),
+    Op(&'src str),
     Ctrl(char),
     Let,
     In,
@@ -22,7 +22,7 @@ impl Display for Token<'_> {
         match self {
             Token::Num(n) => write!(f, "{}", n),
             Token::Ident(s) => write!(f, "{}", s),
-            Token::Operator(s) => write!(f, "{}", s),
+            Token::Op(s) => write!(f, "{}", s),
             Token::Ctrl(c) => write!(f, "{}", c),
             Token::Let => write!(f, "let"),
             Token::In => write!(f, "in"),
@@ -45,10 +45,6 @@ pub enum SyntaxNode<'src, T> {
     },
     FnDef {
         name: Spanned<&'src str>,
-        args: Vec<Spanned<&'src str>>,
-        body: Box<Spanned<T>>,
-    },
-    LambdaFn {
         args: Vec<Spanned<&'src str>>,
         body: Box<Spanned<T>>,
     },
@@ -102,13 +98,6 @@ impl<'src> SyntaxTree<'src> {
         })
     }
 
-    pub fn lambda_fn(args: Vec<Spanned<&'src str>>, body: Spanned<Self>) -> Self {
-        Self(SyntaxNode::LambdaFn {
-            args,
-            body: Box::new(body),
-        })
-    }
-
     pub fn fn_app(lhs: Spanned<Self>, rhs: Spanned<Self>) -> Self {
         Self(SyntaxNode::FnApp {
             lhs: Box::new(lhs),
@@ -137,6 +126,13 @@ impl Display for SyntaxTree<'_> {
             SyntaxNode::Bool(b) => write!(f, "{}", b),
             SyntaxNode::FnApp { lhs, rhs } => write!(f, "({} {})", lhs.0, rhs.0),
             SyntaxNode::OpApp { op, lhs, rhs } => write!(f, "(({}) {} {})", op.0, lhs.0, rhs.0),
+            SyntaxNode::FnDef { name, args, body } => write!(
+                f,
+                "fn {} {} = {}",
+                name.0,
+                args.iter().map(|a| a.0).collect::<Vec<_>>().join(" "),
+                body.0
+            ),
             SyntaxNode::Block { body } => write!(
                 f,
                 "{{ {} }}",

@@ -62,9 +62,9 @@ fn test_operators() {
     assert_lex!(
         src,
         [
-            (Token::Operator("="), span(0, 1)),
-            (Token::Operator("+"), span(2, 3)),
-            (Token::Operator("*"), span(4, 5)),
+            (Token::Op("="), span(0, 1)),
+            (Token::Op("+"), span(2, 3)),
+            (Token::Op("*"), span(4, 5)),
         ]
     );
 }
@@ -98,12 +98,12 @@ fn test_custom_operators() {
     assert_lex!(
         src,
         [
-            (Token::Operator(">>>"), span(0, 3)),
-            (Token::Operator("&&"), span(4, 6)),
-            (Token::Operator("||"), span(7, 9)),
-            (Token::Operator("|>"), span(10, 12)),
-            (Token::Operator("<=>"), span(13, 16)),
-            (Token::Operator("!="), span(17, 19)),
+            (Token::Op(">>>"), span(0, 3)),
+            (Token::Op("&&"), span(4, 6)),
+            (Token::Op("||"), span(7, 9)),
+            (Token::Op("|>"), span(10, 12)),
+            (Token::Op("<=>"), span(13, 16)),
+            (Token::Op("!="), span(17, 19)),
         ]
     );
 }

@@ -94,3 +94,25 @@ fn binding_strength() {
         )
     );
 }
+
+#[test]
+fn test_fn_def() {
+    assert_parse!(
+        "fn add x y = x + y",
+        (
+            SyntaxTree::fn_def(
+                ("add", span(3, 6)),
+                vec![("x", span(7, 8)), ("y", span(9, 10))],
+                (
+                    SyntaxTree::op_app(
+                        ("+", span(15, 16)),
+                        (SyntaxTree::var("x"), span(13, 14)),
+                        (SyntaxTree::var("y"), span(17, 18))
+                    ),
+                    span(13, 18)
+                )
+            ),
+            span(0, 18)
+        )
+    );
+}

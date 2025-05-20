@@ -18,14 +18,18 @@ fn literal<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<Sy
     .labelled("literal")
 }
 
-fn ident<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>> {
+fn ident<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<&'src str>> {
+    select! { Token::Ident(ident) => ident }.map_with(|s, e| (s, e.span()))
+}
+
+fn var<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>> {
     select! { Token::Ident(ident) => SyntaxTree::var(ident) }
         .map_with(|s, e| (s, e.span()))
         .labelled("identifier")
 }
 
 fn operator<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<&'src str>> {
-    select! { Token::Operator(op) => op }
+    select! { Token::Op(op) => op }
         .map_with(|s, e| (s, e.span()))
         .labelled("operator")
 }
@@ -33,6 +37,7 @@ fn operator<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<&
 pub fn parser<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<SyntaxTree<'src>>>
 {
     recursive(|expr| {
+        // { <expr>; <expr>; <expr> }
         let block = expr
             .clone()
             .separated_by(just(Token::Ctrl(';')))
@@ -42,12 +47,29 @@ pub fn parser<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned
             .map_with(|s, e| (SyntaxTree::block(s), e.span()))
             .labelled("block");
 
+        // (<expr>)
         let parens = expr
             .clone()
             .delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')')))
             .labelled("parenthesized expression");
 
-        let atom = choice((parens, block, literal(), ident()));
+        let args = ident()
+            .labelled("argument")
+            .repeated()
+            .at_least(1)
+            .collect::<Vec<_>>();
+
+        // fn <ident> <args> = <expr>
+        let fn_def = just(Token::Fn)
+            .ignore_then(group((
+                ident().labelled("function name"),
+                args,
+                just(Token::Op("=")).ignore_then(expr.clone()),
+            )))
+            .map_with(|(name, args, body), e| (SyntaxTree::fn_def(name, args, body), e.span()))
+            .labelled("function definition");
+
+        let atom = choice((parens, block, literal(), var(), fn_def));
 
         atom.pratt((
             infix(left(10), empty(), |lhs, _, rhs, e| {
