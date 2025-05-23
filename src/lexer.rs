@@ -10,7 +10,6 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
     let keyword = text::ident()
         .map(|s| match s {
             "let" => Token::Let,
-            "in" => Token::In,
             "fn" => Token::Fn,
             "true" => Token::True,
             "false" => Token::False,

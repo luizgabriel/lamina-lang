@@ -3,12 +3,12 @@ use chumsky::{
     Parser,
     input::{Input, Stream},
 };
-use lamina_lang::{error::errors_to_report, lexer::lexer, parser::parser, syntax::SyntaxTree};
+use lamina_lang::{error::errors_to_report, lexer::lexer, parser::parser, syntax::Expr};
 use rustyline::DefaultEditor;
 
 const HISTORY_PATH: &str = ".lamina_history";
 
-fn lex_and_parse(line: &str) -> Result<SyntaxTree<'_>, ()> {
+fn lex_and_parse(line: &str) -> Result<Expr<'_>, ()> {
     let source = Source::from(line);
 
     let tokens = lexer()
