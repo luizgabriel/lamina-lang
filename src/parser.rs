@@ -3,6 +3,7 @@ use crate::syntax::{Expr, Literal, Module, Stmt};
 use chumsky::input::Stream;
 use chumsky::pratt::{infix, left};
 use chumsky::{Parser, prelude::*};
+use thiserror::Error;
 use trait_set::trait_set;
 
 trait_set! {
@@ -152,8 +153,12 @@ pub fn module<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned
         .labelled("module")
 }
 
+#[derive(Debug, Error)]
 pub enum ParseError<'src> {
+    #[error("Lexical error: {0:?}")]
     LexError(Vec<Rich<'src, char>>),
+
+    #[error("Parse error: {0:?}")]
     ParseError(Vec<Rich<'src, Token<'src>>>),
 }
 
@@ -173,6 +178,14 @@ pub fn parse_stmt(input: &str) -> Result<Spanned<Stmt<'_>>, ParseError<'_>> {
     let tokens = lexer().parse(input).into_result()?;
     let stream = Stream::from_iter(tokens).map((0..input.len()).into(), |(t, s)| (t, s));
     let ast = statement(expression()).parse(stream).into_result()?;
+
+    Ok(ast)
+}
+
+pub fn parse_expr(input: &str) -> Result<Spanned<Expr<'_>>, ParseError<'_>> {
+    let tokens = lexer().parse(input).into_result()?;
+    let stream = Stream::from_iter(tokens).map((0..input.len()).into(), |(t, s)| (t, s));
+    let ast = expression().parse(stream).into_result()?;
 
     Ok(ast)
 }
