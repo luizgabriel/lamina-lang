@@ -1,20 +1,15 @@
-use std::fmt::Display;
-
 use ariadne::Source;
-use chumsky::error::Rich;
 use lamina_lang::{
-    core::{lowering_expr, lowering_stmt},
-    error::errors_to_report,
-    parser::{ParseError, parse_expr, parse_stmt},
+    parser::ParseError,
     vm::{Compiler, VM},
 };
 use rustyline::DefaultEditor;
 
 const HISTORY_PATH: &str = ".lamina_history";
 
-fn print_errors(errors: &[Rich<'_, impl Display>], input: &str) -> anyhow::Result<()> {
+fn print_errors<'src>(error: ParseError<'src>, input: &'src str) -> anyhow::Result<()> {
     let source = Source::from(input);
-    errors_to_report(errors).print(&source)?;
+    error.report().print(&source)?;
     Ok(())
 }
 
@@ -94,49 +89,25 @@ fn main() -> anyhow::Result<()> {
                 break;
             }
 
-            // Try to parse as an expression first
-            match parse_expr(&line) {
-                Ok(ast) => {
+            let mut compiler = Compiler::new();
+            match compiler.compile_input(&line) {
+                Ok(instructions) => {
                     rl.add_history_entry(line.trim())?;
-                    let core_expr = lowering_expr(ast);
-
-                    let mut compiler = Compiler::new();
-                    let instructions = compiler.compile(&core_expr);
-
                     match vm.execute(instructions) {
                         Ok(value) => println!("{}", value),
-                        Err(err) => println!("Runtime error: {}", err),
+                        Err(err) => println!("{}", err),
                     }
                     break;
                 }
-                Err(_) => {
-                    // If expression parsing fails, try statement parsing
-                    match parse_stmt(&line) {
-                        Ok(ast) => {
-                            rl.add_history_entry(line.trim())?;
-                            let core_stmt = lowering_stmt(ast.0, (().into(), ast.1));
-
-                            let mut compiler = Compiler::new();
-                            let instructions = compiler.compile(&(core_stmt, ast.1));
-
-                            if let Err(err) = vm.execute(instructions) {
-                                println!("Runtime error: {}", err);
-                            }
-                            break;
-                        }
-                        Err(ParseError::LexError(errors)) => print_errors(&errors, &line)?,
-                        Err(ParseError::ParseError(errors)) => {
-                            let is_incomplete = errors.iter().any(|error| error.found().is_none());
-                            if is_incomplete {
-                                line.push_str("\n\t");
-                                continue;
-                            } else {
-                                print_errors(&errors, &line)?;
-                                line.clear();
-                                break;
-                            }
-                        }
+                Err(err) => {
+                    if err.is_incomplete_input() {
+                        line.push_str("\n\t");
+                        continue;
                     }
+
+                    print_errors(err, &line)?;
+                    line.clear();
+                    break;
                 }
             }
         }

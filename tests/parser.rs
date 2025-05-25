@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use lamina_lang::{
     lexer::{Span, lexer},
     parser::{expression, statement},
-    syntax::{Expr, Stmt},
+    syntax::{AstExpr, AstStmt},
 };
 
 #[macro_export]
@@ -33,38 +33,38 @@ fn span(start: usize, end: usize) -> Span {
 
 #[test]
 fn test_parse_var() {
-    assert_expr!("foo", (Expr::ident("foo"), span(0, 3)));
-    assert_expr!("foo_bar", (Expr::ident("foo_bar"), span(0, 7)));
+    assert_expr!("foo", (AstExpr::ident("foo"), span(0, 3)));
+    assert_expr!("foo_bar", (AstExpr::ident("foo_bar"), span(0, 7)));
 }
 
 #[test]
 fn test_parse_num() {
-    assert_expr!("123", (Expr::literal(123.0), span(0, 3)));
-    assert_expr!("123.456", (Expr::literal(123.456), span(0, 7)));
+    assert_expr!("123", (AstExpr::literal(123.0), span(0, 3)));
+    assert_expr!("123.456", (AstExpr::literal(123.456), span(0, 7)));
 }
 
 #[test]
 fn test_parse_bool() {
-    assert_expr!("true", (Expr::literal(true), span(0, 4)));
-    assert_expr!("false", (Expr::literal(false), span(0, 5)));
+    assert_expr!("true", (AstExpr::literal(true), span(0, 4)));
+    assert_expr!("false", (AstExpr::literal(false), span(0, 5)));
 }
 
 #[test]
 fn test_parse_tuple() {
     // empty tuple
-    assert_expr!("()", (Expr::literal(()), span(0, 2)));
+    assert_expr!("()", (AstExpr::literal(()), span(0, 2)));
 
     // single item tuple -> parsed as a parenthesized expression
-    assert_expr!("(1)", (Expr::literal(1.0), span(1, 2)));
+    assert_expr!("(1)", (AstExpr::literal(1.0), span(1, 2)));
 
     // multiple item tuple
     assert_expr!(
         "(1, 2, 3)",
         (
-            Expr::tuple(vec![
-                (Expr::literal(1.0), span(1, 2)),
-                (Expr::literal(2.0), span(4, 5)),
-                (Expr::literal(3.0), span(7, 8))
+            AstExpr::tuple(vec![
+                (AstExpr::literal(1.0), span(1, 2)),
+                (AstExpr::literal(2.0), span(4, 5)),
+                (AstExpr::literal(3.0), span(7, 8))
             ]),
             span(0, 9)
         )
@@ -76,10 +76,10 @@ fn test_op_app() {
     assert_expr!(
         "1 + 2",
         (
-            Expr::op_app(
+            AstExpr::op_app(
                 ("+", span(2, 3)),
-                (Expr::literal(1.0), span(0, 1)),
-                (Expr::literal(2.0), span(4, 5))
+                (AstExpr::literal(1.0), span(0, 1)),
+                (AstExpr::literal(2.0), span(4, 5))
             ),
             span(0, 5)
         )
@@ -91,9 +91,9 @@ fn test_fn_app() {
     assert_expr!(
         "f 1",
         (
-            Expr::fn_app(
-                (Expr::ident("f"), span(0, 1)),
-                (Expr::literal(1.0), span(2, 3))
+            AstExpr::fn_app(
+                (AstExpr::ident("f"), span(0, 1)),
+                (AstExpr::literal(1.0), span(2, 3))
             ),
             span(0, 3)
         )
@@ -105,19 +105,19 @@ fn binding_strength() {
     assert_expr!(
         "f 1 + g 2",
         (
-            Expr::op_app(
+            AstExpr::op_app(
                 ("+", span(4, 5)),
                 (
-                    Expr::fn_app(
-                        (Expr::ident("f"), span(0, 1)),
-                        (Expr::literal(1.0), span(2, 3))
+                    AstExpr::fn_app(
+                        (AstExpr::ident("f"), span(0, 1)),
+                        (AstExpr::literal(1.0), span(2, 3))
                     ),
                     span(0, 3)
                 ),
                 (
-                    Expr::fn_app(
-                        (Expr::ident("g"), span(6, 7)),
-                        (Expr::literal(2.0), span(8, 9))
+                    AstExpr::fn_app(
+                        (AstExpr::ident("g"), span(6, 7)),
+                        (AstExpr::literal(2.0), span(8, 9))
                     ),
                     span(6, 9)
                 )
@@ -132,14 +132,14 @@ fn test_fn_def() {
     assert_stmt!(
         "fn add x y = x + y;",
         (
-            Stmt::fn_def(
+            AstStmt::fn_def(
                 ("add", span(3, 6)),
                 vec![("x", span(7, 8)), ("y", span(9, 10))],
                 (
-                    Expr::op_app(
+                    AstExpr::op_app(
                         ("+", span(15, 16)),
-                        (Expr::ident("x"), span(13, 14)),
-                        (Expr::ident("y"), span(17, 18))
+                        (AstExpr::ident("x"), span(13, 14)),
+                        (AstExpr::ident("y"), span(17, 18))
                     ),
                     span(13, 18)
                 )
@@ -151,16 +151,22 @@ fn test_fn_def() {
 
 #[test]
 fn test_block() {
-    assert_expr!("{}", (Expr::block(vec![], None), span(1, 1)));
+    assert_expr!("{}", (AstExpr::block(vec![], None), span(1, 1)));
     assert_expr!(
         "{ 1; 2; 3 }",
         (
-            Expr::block(
+            AstExpr::block(
                 vec![
-                    (Stmt::expr((Expr::literal(1.0), span(2, 3))), span(2, 3)),
-                    (Stmt::expr((Expr::literal(2.0), span(5, 6))), span(5, 6)),
+                    (
+                        AstStmt::expr((AstExpr::literal(1.0), span(2, 3))),
+                        span(2, 3)
+                    ),
+                    (
+                        AstStmt::expr((AstExpr::literal(2.0), span(5, 6))),
+                        span(5, 6)
+                    ),
                 ],
-                Some((Expr::literal(3.0), span(8, 9)))
+                Some((AstExpr::literal(3.0), span(8, 9)))
             ),
             span(2, 9)
         )
@@ -174,26 +180,26 @@ fn test_block() {
           };
         "#,
         (
-            Stmt::fn_def(
+            AstStmt::fn_def(
                 ("add", span(14, 17)),
                 vec![("x", span(18, 19)), ("y", span(20, 21))],
                 (
-                    Expr::block(
+                    AstExpr::block(
                         vec![(
-                            Stmt::let_def(
+                            AstStmt::let_def(
                                 ("sum", span(42, 45)),
                                 (
-                                    Expr::op_app(
+                                    AstExpr::op_app(
                                         ("+", span(50, 51)),
-                                        (Expr::ident("x"), span(48, 49)),
-                                        (Expr::ident("y"), span(52, 53))
+                                        (AstExpr::ident("x"), span(48, 49)),
+                                        (AstExpr::ident("y"), span(52, 53))
                                     ),
                                     span(48, 53)
                                 )
                             ),
                             span(38, 53)
                         )],
-                        Some((Expr::ident("sum"), span(67, 70)))
+                        Some((AstExpr::ident("sum"), span(67, 70)))
                     ),
                     span(38, 70)
                 )

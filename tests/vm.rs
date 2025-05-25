@@ -1,26 +1,21 @@
-use lamina_lang::{core::lowering_expr, parser::parse_expr, vm::compile_and_execute};
+use k9::assert_err;
+use lamina_lang::{
+    parser::ParseError,
+    vm::{Compiler, VM, VMError, VmValue},
+};
+
+pub fn compile_and_execute(input: &str) -> Result<VmValue, VMError> {
+    let mut compiler = Compiler::new();
+    let mut vm = VM::default();
+    let instructions = compiler.compile_input(input).unwrap();
+    vm.execute(instructions)
+}
 
 // Macro to simplify testing VM expressions
 macro_rules! assert_vm {
     ($input:expr, $expected:expr) => {
-        assert_eq!(test_expression($input).unwrap(), $expected);
+        assert_eq!(compile_and_execute($input).unwrap().to_string(), $expected);
     };
-    ($input:expr, $expected:expr, $($arg:tt)*) => {
-        assert_eq!(test_expression($input).unwrap(), $expected, $($arg)*);
-    };
-}
-
-fn test_expression(input: &str) -> Result<String, String> {
-    match parse_expr(input) {
-        Ok(ast) => {
-            let core_expr = lowering_expr(ast);
-            match compile_and_execute(&core_expr) {
-                Ok(value) => Ok(value.to_string()),
-                Err(err) => Err(format!("Runtime error: {}", err)),
-            }
-        }
-        Err(err) => Err(format!("Parse error: {:?}", err)),
-    }
 }
 
 #[test]
@@ -85,9 +80,9 @@ fn test_complex_expressions() {
 #[test]
 fn test_error_cases() {
     // Division by zero
-    assert!(test_expression("5 / 0").is_err());
+    assert_err!(compile_and_execute("5 / 0"));
 
     // Type errors
-    assert!(test_expression("true + 5").is_err());
-    assert!(test_expression("5 && true").is_err());
+    assert_err!(compile_and_execute("true + 5"));
+    assert_err!(compile_and_execute("5 && true"));
 }
