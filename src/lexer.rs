@@ -17,7 +17,11 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
         })
         .labelled("keyword/identifier");
 
-    let ctrl = one_of("(){}[];,")
+    let semi = just(";").map(|_| Token::Semi).labelled("semicolon");
+
+    let comma = just(",").map(|_| Token::Comma).labelled("comma");
+
+    let ctrl = one_of("(){}[]")
         .map(Token::Ctrl)
         .labelled("control character");
 
@@ -41,7 +45,7 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
         .padded()
         .labelled("comment");
 
-    let token = choice((num, ctrl, op, keyword));
+    let token = choice((num, semi, comma, ctrl, op, keyword));
 
     token
         .map_with(|tok, e| (tok, e.span()))
