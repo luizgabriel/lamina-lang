@@ -1,9 +1,6 @@
 use chumsky::Parser;
 use k9::snapshot;
-use lamina_lang::{
-    lexer::lexer,
-    syntax::{Span, Token},
-};
+use lamina_lang::lexer::{Span, Token, lexer};
 
 #[macro_export]
 macro_rules! assert_lex {

@@ -1,6 +1,11 @@
+use std::fmt::Display;
+
 use chumsky::span::SimpleSpan;
 
-use crate::syntax::{Expr, Literal, Spanned, Stmt};
+use crate::{
+    lexer::Spanned,
+    syntax::{Expr, Literal, Stmt},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum CoreLang<'src> {
@@ -20,6 +25,29 @@ pub enum CoreLang<'src> {
         lhs: Box<Spanned<CoreLang<'src>>>,
         rhs: Box<Spanned<CoreLang<'src>>>,
     },
+}
+
+impl Display for CoreLang<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CoreLang::Ident(name) => write!(f, "{}", name),
+            CoreLang::Literal(literal) => write!(f, "{}", literal),
+            CoreLang::Tuple(items) => write!(
+                f,
+                "({})",
+                items
+                    .iter()
+                    .map(|item| item.0.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            CoreLang::Lambda { arg, body } => write!(f, "λ{} -> ({})", arg.0, body.0),
+            CoreLang::Let { name, rhs, then } => {
+                write!(f, "let {} = {} in {}", name.0, rhs.0, then.0)
+            }
+            CoreLang::FnApp { lhs, rhs } => write!(f, "{} {}", lhs.0, rhs.0),
+        }
+    }
 }
 
 impl<'src> CoreLang<'src> {
@@ -80,7 +108,7 @@ impl From<bool> for CoreLang<'_> {
     }
 }
 
-fn lowering_stmt<'src>(stmt: Stmt<'src>, then: Spanned<CoreLang<'src>>) -> CoreLang<'src> {
+pub fn lowering_stmt<'src>(stmt: Stmt<'src>, then: Spanned<CoreLang<'src>>) -> CoreLang<'src> {
     match stmt {
         Stmt::Expr(expr) => CoreLang::let_binding(("_", expr.1), lowering_expr(expr), then),
 

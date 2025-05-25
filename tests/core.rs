@@ -4,9 +4,8 @@ use chumsky::{
 };
 use lamina_lang::{
     core::{CoreLang, lowering_expr},
-    lexer::lexer,
+    lexer::{Span, lexer},
     parser::expression,
-    syntax::Span,
 };
 
 macro_rules! assert_hir {

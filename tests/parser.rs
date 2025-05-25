@@ -1,9 +1,9 @@
 use chumsky::input::Stream;
 use chumsky::prelude::*;
 use lamina_lang::{
-    lexer::lexer,
+    lexer::{Span, lexer},
     parser::{expression, statement},
-    syntax::{Expr, Span, Stmt},
+    syntax::{Expr, Stmt},
 };
 
 #[macro_export]

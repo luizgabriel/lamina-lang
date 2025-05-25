@@ -1,4 +1,6 @@
-use crate::syntax::{Expr, Literal, Module, Span, Spanned, Stmt, Token};
+use crate::lexer::{Span, Spanned, Token, lexer};
+use crate::syntax::{Expr, Literal, Module, Stmt};
+use chumsky::input::Stream;
 use chumsky::pratt::{infix, left};
 use chumsky::{Parser, prelude::*};
 use trait_set::trait_set;
@@ -148,4 +150,37 @@ pub fn module<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned
         .collect::<Vec<_>>()
         .map_with(|items, e| (Module::new(items), e.span()))
         .labelled("module")
+}
+
+pub enum ParseError<'src> {
+    LexError(Vec<Rich<'src, char>>),
+    ParseError(Vec<Rich<'src, Token<'src>>>),
+}
+
+impl<'src> From<Vec<Rich<'src, char>>> for ParseError<'src> {
+    fn from(errors: Vec<Rich<'src, char>>) -> Self {
+        ParseError::LexError(errors)
+    }
+}
+
+impl<'src> From<Vec<Rich<'src, Token<'src>>>> for ParseError<'src> {
+    fn from(errors: Vec<Rich<'src, Token<'src>>>) -> Self {
+        ParseError::ParseError(errors)
+    }
+}
+
+pub fn parse_stmt(input: &str) -> Result<Spanned<Stmt<'_>>, ParseError<'_>> {
+    let tokens = lexer().parse(input).into_result()?;
+    let stream = Stream::from_iter(tokens).map((0..input.len()).into(), |(t, s)| (t, s));
+    let ast = statement(expression()).parse(stream).into_result()?;
+
+    Ok(ast)
+}
+
+pub fn parse_module(input: &str) -> Result<Spanned<Module<'_>>, ParseError<'_>> {
+    let tokens = lexer().parse(input).into_result()?;
+    let stream = Stream::from_iter(tokens).map((0..input.len()).into(), |(t, s)| (t, s));
+    let ast = module().parse(stream).into_result()?;
+
+    Ok(ast)
 }
