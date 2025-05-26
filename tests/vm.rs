@@ -1,8 +1,5 @@
 use k9::assert_err;
-use lamina_lang::{
-    parser::ParseError,
-    vm::{Compiler, VM, VMError, VmValue},
-};
+use lamina_lang::vm::{Compiler, VM, VMError, VmValue};
 
 pub fn compile_and_execute(input: &str) -> Result<VmValue, VMError> {
     let mut compiler = Compiler::new();
@@ -56,10 +53,8 @@ fn test_boolean_operations() {
 }
 
 #[test]
-fn test_function_applications() {
-    // Test function application with identifiers
-    // Note: The language doesn't support parenthesized operators like (+)
-    // This test is removed for now
+fn test_partial_application() {
+    assert_vm!("{ let add1 = (+) 1; add1 2 }", "3");
 }
 
 #[test]

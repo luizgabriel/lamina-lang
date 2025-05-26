@@ -28,9 +28,16 @@ fn literal_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spann
 
 fn identifier_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>
 {
-    select! { Token::Ident(ident) => AstExpr::ident(ident) }
-        .map_with(|s, e| (s, e.span()))
-        .labelled("identifier")
+    let ident = select! { Token::Ident(ident) => ident }
+        .map_with(|s, e| (AstExpr::ident(s), e.span()))
+        .labelled("identifier");
+
+    let op = select! { Token::Op(op) => op }
+        .delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')')))
+        .map_with(|s, e| (AstExpr::ident(s), e.span()))
+        .labelled("operator");
+
+    choice((ident, op))
 }
 
 fn operator<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<&'src str>> {
@@ -113,9 +120,11 @@ pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spa
         let atom = choice((identifier_expr(), literal_expr(), parens, block));
 
         atom.pratt((
+            // function application
             infix(left(10), empty(), |lhs, _, rhs, e| {
                 (AstExpr::fn_app(lhs, rhs), e.span())
             }),
+            // operator application
             infix(left(1), operator(), |lhs, op, rhs, e| {
                 (AstExpr::op_app(op, lhs, rhs), e.span())
             }),
