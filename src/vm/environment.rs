@@ -1,17 +1,13 @@
-use std::collections::HashMap;
-
 use super::VmValue;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct VmEnv {
-    pub bindings: HashMap<String, VmValue>,
+    pub bindings: im::HashMap<String, VmValue>,
 }
 
-impl Default for VmEnv {
-    fn default() -> Self {
-        let mut env = VmEnv {
-            bindings: HashMap::new(),
-        };
+impl VmEnv {
+    pub fn builtins() -> Self {
+        let mut env = VmEnv::default();
 
         // Add built-in functions as native functions
         env.bindings
@@ -36,12 +32,6 @@ impl Default for VmEnv {
             .insert("!".to_string(), VmValue::NativeFn("!".to_string()));
 
         env
-    }
-}
-
-impl VmEnv {
-    pub fn new() -> Self {
-        VmEnv::default()
     }
 
     pub fn get(&self, name: &str) -> Option<&VmValue> {

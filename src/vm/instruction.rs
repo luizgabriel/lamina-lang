@@ -8,7 +8,11 @@ pub enum Instruction {
     StoreVar(String),
 
     // Function operations
-    MakeClosure { arg_name: String, body_len: usize },
+    MakeClosure {
+        fn_name: Option<String>, // Some(name) for recursive functions, None for regular closures
+        arg_name: String,
+        body_len: usize,
+    },
     Call,
     Return,
 

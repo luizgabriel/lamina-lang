@@ -3,7 +3,7 @@ use lamina_lang::vm::{Compiler, VM, VMError, VmValue};
 
 pub fn compile_and_execute(input: &str) -> Result<VmValue, VMError> {
     let mut compiler = Compiler::new();
-    let mut vm = VM::default();
+    let mut vm = VM::new();
     let instructions = compiler.compile_input(input).unwrap();
     vm.execute(instructions)
 }
@@ -98,4 +98,46 @@ fn test_if_expressions() {
     // If with variables in blocks
     assert_vm!("{ let x = 5; if x > 3 then x + 1 else x - 1 }", "6");
     assert_vm!("{ let x = 2; if x > 3 then x + 1 else x - 1 }", "1");
+}
+
+#[test]
+fn test_recursive_functions() {
+    // Simple recursive factorial function
+    assert_vm!(
+        "{ fn fact n = if n == 0 then 1 else n * (fact (n - 1)); fact 5 }",
+        "120"
+    );
+
+    // Recursive fibonacci function
+    assert_vm!(
+        "{ fn fib n = if n < 2 then n else (fib (n - 1)) + (fib (n - 2)); fib 6 }",
+        "8"
+    );
+
+    // Recursive countdown function
+    assert_vm!(
+        "{ fn countdown n = if n == 0 then 0 else countdown (n - 1); countdown 5 }",
+        "0"
+    );
+}
+
+#[test]
+fn test_mutually_recursive_functions() {
+    // Simple mutual recursion - even/odd
+    assert_vm!(
+        r#"{
+            fn even n =
+                if n == 0 
+                    then true
+                    else odd (n - 1);
+                    
+            fn odd n = 
+                if n == 0
+                    then false
+                    else even (n - 1);
+            
+            even 4
+        }"#,
+        "true"
+    );
 }

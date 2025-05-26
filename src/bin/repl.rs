@@ -42,7 +42,7 @@ fn handle_repl_command(command: &str, vm: &mut VM) -> bool {
         }
         ":env" | ":e" => {
             println!("Environment bindings:");
-            for (name, value) in &vm.env.bindings {
+            for (name, value) in &vm.env.borrow().bindings {
                 println!("  {} = {}", name, value);
             }
             true
@@ -68,7 +68,7 @@ fn main() -> anyhow::Result<()> {
     println!("Type :help for available commands.");
     let mut rl = DefaultEditor::new()?;
     let _ = rl.load_history(HISTORY_PATH);
-    let mut vm = VM::default();
+    let mut vm = VM::new();
 
     'outer: loop {
         let mut line = String::new();

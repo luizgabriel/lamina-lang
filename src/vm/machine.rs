@@ -1,9 +1,11 @@
 use super::{Instruction, VMError, VmEnv, VmValue};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Default)]
 pub struct VM {
     pub stack: Vec<VmValue>,
-    pub env: VmEnv,
+    pub env: Rc<RefCell<VmEnv>>,
     pub call_stack: Vec<CallFrame>,
 }
 
@@ -11,10 +13,18 @@ pub struct VM {
 pub struct CallFrame {
     pub instructions: Vec<Instruction>,
     pub pc: usize,
-    pub env: VmEnv,
+    pub env: Rc<RefCell<VmEnv>>,
 }
 
 impl VM {
+    pub fn new() -> Self {
+        Self {
+            stack: Vec::new(),
+            env: Rc::new(RefCell::new(VmEnv::builtins())),
+            call_stack: Vec::new(),
+        }
+    }
+
     pub fn execute(&mut self, instructions: Vec<Instruction>) -> Result<VmValue, VMError> {
         self.call_stack.push(CallFrame {
             instructions,
@@ -34,7 +44,7 @@ impl VM {
                         self.stack.push(value.clone());
                     }
                     Instruction::LoadVar(name) => {
-                        if let Some(value) = frame.env.get(name) {
+                        if let Some(value) = frame.env.borrow().get(name) {
                             self.stack.push(value.clone());
                         } else {
                             return Err(VMError::unbound_variable(name));
@@ -42,19 +52,24 @@ impl VM {
                     }
                     Instruction::StoreVar(name) => {
                         let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        frame.env.set(name.clone(), value.clone());
+                        frame.env.borrow_mut().set(name.clone(), value.clone());
                         // If this is the top-level frame, also update the VM's environment
                         if is_top_level {
-                            self.env.set(name.clone(), value);
+                            self.env.borrow_mut().set(name.clone(), value);
                         }
                     }
-                    Instruction::MakeClosure { arg_name, body_len } => {
+                    Instruction::MakeClosure {
+                        fn_name,
+                        arg_name,
+                        body_len,
+                    } => {
                         let body_start = frame.pc;
                         let body_end = frame.pc + body_len;
                         let body = frame.instructions[body_start..body_end].to_vec();
                         frame.pc = body_end;
 
                         let closure = VmValue::Closure {
+                            fn_name: fn_name.clone(),
                             arg_name: arg_name.clone(),
                             body,
                             env: frame.env.clone(),
@@ -67,16 +82,29 @@ impl VM {
 
                         match func {
                             VmValue::Closure {
+                                fn_name,
                                 arg_name,
                                 body,
                                 env,
                             } => {
-                                let new_env = env.extend(arg_name, arg);
+                                let new_env = env.borrow().extend(arg_name.clone(), arg);
+                                let new_env_rc = Rc::new(RefCell::new(new_env));
+                                if let Some(name) = fn_name {
+                                    new_env_rc.borrow_mut().set(
+                                        name.clone(),
+                                        VmValue::Closure {
+                                            fn_name: Some(name.clone()),
+                                            arg_name: arg_name.clone(),
+                                            body: body.clone(),
+                                            env: env.clone(),
+                                        },
+                                    );
+                                }
                                 self.call_stack.push(frame);
                                 self.call_stack.push(CallFrame {
                                     instructions: body,
                                     pc: 0,
-                                    env: new_env,
+                                    env: new_env_rc,
                                 });
                                 break;
                             }
@@ -271,21 +299,24 @@ impl VM {
             Instruction::Return,
         ];
 
-        let env = VmEnv::default().extend("__first".to_string(), first_arg);
+        let env = Rc::new(RefCell::new(
+            VmEnv::default().extend("__first".to_string(), first_arg),
+        ));
 
         Ok(VmValue::Closure {
+            fn_name: None,
             arg_name: "__second".to_string(),
             body,
             env,
         })
     }
 
-    pub fn get_env(&self) -> &VmEnv {
-        &self.env
+    pub fn get_env(&self) -> Rc<RefCell<VmEnv>> {
+        self.env.clone()
     }
 
     pub fn set_var(&mut self, name: String, value: VmValue) {
-        self.env.set(name, value);
+        self.env.borrow_mut().set(name, value);
     }
 
     pub fn get_stack(&self) -> &Vec<VmValue> {

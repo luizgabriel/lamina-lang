@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::fmt::Display;
+use std::rc::Rc;
 
 use crate::syntax::AstLiteral;
 
@@ -11,9 +13,10 @@ pub enum VmValue {
     Bool(bool),
     Tuple(Vec<VmValue>),
     Closure {
+        fn_name: Option<String>,
         arg_name: String,
         body: Vec<Instruction>,
-        env: VmEnv,
+        env: Rc<RefCell<super::VmEnv>>,
     },
     NativeFn(String),
 }
@@ -34,7 +37,12 @@ impl Display for VmValue {
                 }
                 write!(f, ")")
             }
-            VmValue::Closure { arg_name, .. } => write!(f, "<closure λ{}>", arg_name),
+            VmValue::Closure {
+                fn_name, arg_name, ..
+            } => match fn_name {
+                Some(name) => write!(f, "<recursive closure {} λ{}>", name, arg_name),
+                None => write!(f, "<closure λ{}>", arg_name),
+            },
             VmValue::NativeFn(name) => write!(f, "<native {}>", name),
         }
     }
