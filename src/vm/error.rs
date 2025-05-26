@@ -19,6 +19,9 @@ pub enum VMError {
         operation: String,
         operand_type: String,
     },
+
+    #[error("Stack overflow: maximum call stack depth exceeded")]
+    StackOverflow,
 }
 
 impl VMError {
@@ -40,5 +43,9 @@ impl VMError {
             operation: operation.into(),
             operand_type: operand_type.into(),
         }
+    }
+
+    pub fn stack_overflow() -> Self {
+        VMError::StackOverflow
     }
 }

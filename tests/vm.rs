@@ -1,9 +1,9 @@
 use k9::assert_err;
-use lamina_lang::vm::{Compiler, VM, VMError, VmValue};
+use lamina_lang::vm::{Compiler, VM, VMError, VmEnv, VmValue};
 
 pub fn compile_and_execute(input: &str) -> Result<VmValue, VMError> {
     let mut compiler = Compiler::new();
-    let mut vm = VM::new();
+    let mut vm = VM::new(32, VmEnv::builtins());
     let instructions = compiler.compile_input(input).unwrap();
     vm.execute(instructions)
 }
@@ -110,7 +110,13 @@ fn test_recursive_functions() {
 
     // Recursive fibonacci function
     assert_vm!(
-        "{ fn fib n = if n < 2 then n else (fib (n - 1)) + (fib (n - 2)); fib 6 }",
+        "{ 
+            fn fib n = 
+                if n < 2 
+                    then n
+                    else (fib (n - 1)) + (fib (n - 2));
+            fib 6
+        }",
         "8"
     );
 
@@ -123,7 +129,6 @@ fn test_recursive_functions() {
 
 #[test]
 fn test_mutually_recursive_functions() {
-    // Simple mutual recursion - even/odd
     assert_vm!(
         r#"{
             fn even n =
@@ -140,4 +145,16 @@ fn test_mutually_recursive_functions() {
         }"#,
         "true"
     );
+}
+
+#[test]
+fn test_stack_overflow() {
+    let mut compiler = Compiler::new();
+    // Recursive function that never terminates
+    let code = "{ fn loop_forever n = loop_forever n; loop_forever 0 }";
+    let instructions = compiler.compile_input(code).unwrap();
+    // Set a low max_call_stack_depth to trigger overflow quickly
+    let mut vm = VM::new(16, VmEnv::builtins());
+    let result = vm.execute(instructions);
+    assert!(matches!(result, Err(VMError::StackOverflow)));
 }

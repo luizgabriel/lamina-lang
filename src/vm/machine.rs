@@ -2,11 +2,10 @@ use super::{Instruction, VMError, VmEnv, VmValue};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Default)]
 pub struct VM {
-    pub stack: Vec<VmValue>,
     pub env: Rc<RefCell<VmEnv>>,
     pub call_stack: Vec<CallFrame>,
+    max_call_stack_depth: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -14,104 +13,106 @@ pub struct CallFrame {
     pub instructions: Vec<Instruction>,
     pub pc: usize,
     pub env: Rc<RefCell<VmEnv>>,
+    pub stack: Vec<VmValue>,
+}
+
+impl CallFrame {
+    pub fn new(instructions: Vec<Instruction>, env: Rc<RefCell<VmEnv>>) -> Self {
+        Self {
+            instructions,
+            pc: 0,
+            env,
+            stack: Vec::new(),
+        }
+    }
+
+    pub fn pop_stack(&mut self) -> Result<VmValue, VMError> {
+        self.stack.pop().ok_or(VMError::StackUnderflow)
+    }
 }
 
 impl VM {
-    pub fn new() -> Self {
+    pub fn new(max_call_stack_depth: usize, env: VmEnv) -> Self {
         Self {
-            stack: Vec::new(),
-            env: Rc::new(RefCell::new(VmEnv::builtins())),
+            env: Rc::new(RefCell::new(env)),
+            max_call_stack_depth,
             call_stack: Vec::new(),
         }
     }
 
     pub fn execute(&mut self, instructions: Vec<Instruction>) -> Result<VmValue, VMError> {
-        self.call_stack.push(CallFrame {
-            instructions,
-            pc: 0,
-            env: self.env.clone(),
-        });
+        self.call_stack
+            .push(CallFrame::new(instructions, self.env.clone()));
+
+        let mut return_value = VmValue::Unit;
 
         while let Some(mut frame) = self.call_stack.pop() {
-            let is_top_level = self.call_stack.is_empty();
-
             while frame.pc < frame.instructions.len() {
                 let instruction = &frame.instructions[frame.pc].clone();
                 frame.pc += 1;
 
                 match instruction {
                     Instruction::LoadConst(value) => {
-                        self.stack.push(value.clone());
+                        frame.stack.push(value.clone());
                     }
                     Instruction::LoadVar(name) => {
                         if let Some(value) = frame.env.borrow().get(name) {
-                            self.stack.push(value.clone());
+                            frame.stack.push(value.clone());
                         } else {
                             return Err(VMError::unbound_variable(name));
                         }
                     }
                     Instruction::StoreVar(name) => {
-                        let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        frame.env.borrow_mut().set(name.clone(), value.clone());
-                        // If this is the top-level frame, also update the VM's environment
-                        if is_top_level {
-                            self.env.borrow_mut().set(name.clone(), value);
-                        }
+                        let value = frame.pop_stack()?;
+                        frame.env.borrow_mut().set(name.clone(), value);
                     }
-                    Instruction::MakeClosure {
+                    Instruction::MakeRecursiveClosure {
                         fn_name,
                         arg_name,
                         body_len,
                     } => {
-                        let body_start = frame.pc;
-                        let body_end = frame.pc + body_len;
-                        let body = frame.instructions[body_start..body_end].to_vec();
-                        frame.pc = body_end;
-
+                        let body = self.extract_closure_body(&mut frame, *body_len);
+                        let env = frame.env.clone();
                         let closure = VmValue::Closure {
-                            fn_name: fn_name.clone(),
+                            arg_name: arg_name.clone(),
+                            body,
+                            env: env.clone(),
+                        };
+                        env.borrow_mut().set(fn_name.clone(), closure.clone());
+                        frame.stack.push(closure);
+                    }
+                    Instruction::MakeClosure { arg_name, body_len } => {
+                        let body = self.extract_closure_body(&mut frame, *body_len);
+                        let closure = VmValue::Closure {
                             arg_name: arg_name.clone(),
                             body,
                             env: frame.env.clone(),
                         };
-                        self.stack.push(closure);
+                        frame.stack.push(closure);
                     }
                     Instruction::Call => {
-                        let arg = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let func = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let arg = frame.pop_stack()?;
+                        let func = frame.pop_stack()?;
+                        if self.call_stack.len() + 2 > self.max_call_stack_depth {
+                            return Err(VMError::stack_overflow());
+                        }
 
                         match func {
                             VmValue::Closure {
-                                fn_name,
                                 arg_name,
                                 body,
                                 env,
                             } => {
-                                let new_env = env.borrow().extend(arg_name.clone(), arg);
-                                let new_env_rc = Rc::new(RefCell::new(new_env));
-                                if let Some(name) = fn_name {
-                                    new_env_rc.borrow_mut().set(
-                                        name.clone(),
-                                        VmValue::Closure {
-                                            fn_name: Some(name.clone()),
-                                            arg_name: arg_name.clone(),
-                                            body: body.clone(),
-                                            env: env.clone(),
-                                        },
-                                    );
-                                }
                                 self.call_stack.push(frame);
-                                self.call_stack.push(CallFrame {
-                                    instructions: body,
-                                    pc: 0,
-                                    env: new_env_rc,
-                                });
+                                let new_env = env.borrow().extend(arg_name.clone(), arg.clone());
+                                let new_frame =
+                                    CallFrame::new(body, Rc::new(RefCell::new(new_env)));
+                                self.call_stack.push(new_frame);
                                 break;
                             }
-                            VmValue::NativeFn(name) => {
-                                // For binary operations, we need to create a partial application
+                            VmValue::BuiltInFn(name) => {
                                 let result = self.create_partial_application(&name, arg)?;
-                                self.stack.push(result);
+                                frame.stack.push(result);
                             }
                             _ => {
                                 return Err(VMError::type_error("Cannot call non-function"));
@@ -119,151 +120,69 @@ impl VM {
                         }
                     }
                     Instruction::Return => {
+                        return_value = frame.pop_stack()?;
                         break;
                     }
                     Instruction::MakeTuple(size) => {
                         let mut items = Vec::new();
                         for _ in 0..*size {
-                            items.push(self.stack.pop().ok_or(VMError::StackUnderflow)?);
+                            items.push(frame.pop_stack()?);
                         }
                         items.reverse();
-                        self.stack.push(VmValue::Tuple(items));
+                        frame.stack.push(VmValue::Tuple(items));
                     }
                     Instruction::Add => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Num(x), VmValue::Num(y)) => {
-                                self.stack.push(VmValue::Num(x + y))
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Addition requires numbers"));
-                            }
-                        }
+                        self.execute_binary_operation::<f64, f64, _>(&mut frame, |x, y| x + y)?;
                     }
                     Instruction::Sub => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Num(x), VmValue::Num(y)) => {
-                                self.stack.push(VmValue::Num(x - y))
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Subtraction requires numbers"));
-                            }
-                        }
+                        self.execute_binary_operation::<f64, f64, _>(&mut frame, |x, y| x - y)?;
                     }
                     Instruction::Mul => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Num(x), VmValue::Num(y)) => {
-                                self.stack.push(VmValue::Num(x * y))
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Multiplication requires numbers"));
-                            }
-                        }
+                        self.execute_binary_operation::<f64, f64, _>(&mut frame, |x, y| x * y)?;
                     }
                     Instruction::Div => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Num(x), VmValue::Num(y)) => {
-                                if y == 0.0 {
-                                    return Err(VMError::DivisionByZero);
-                                }
-                                self.stack.push(VmValue::Num(x / y));
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Division requires numbers"));
-                            }
-                        }
+                        self.execute_division(&mut frame)?;
                     }
                     Instruction::Eq => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        self.stack.push(VmValue::Bool(a == b));
+                        let b = frame.pop_stack()?;
+                        let a = frame.pop_stack()?;
+                        frame.stack.push(VmValue::Bool(a == b));
                     }
                     Instruction::Lt => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Num(x), VmValue::Num(y)) => {
-                                self.stack.push(VmValue::Bool(x < y))
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Comparison requires numbers"));
-                            }
-                        }
+                        self.execute_binary_operation::<f64, bool, _>(&mut frame, |x, y| x < y)?;
                     }
                     Instruction::Gt => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Num(x), VmValue::Num(y)) => {
-                                self.stack.push(VmValue::Bool(x > y))
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Comparison requires numbers"));
-                            }
-                        }
+                        self.execute_binary_operation::<f64, bool, _>(&mut frame, |x, y| x > y)?;
                     }
                     Instruction::And => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Bool(x), VmValue::Bool(y)) => {
-                                self.stack.push(VmValue::Bool(x && y))
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Logical AND requires booleans"));
-                            }
-                        }
+                        self.execute_binary_operation::<bool, bool, _>(&mut frame, |x, y| x && y)?;
                     }
                     Instruction::Or => {
-                        let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match (a, b) {
-                            (VmValue::Bool(x), VmValue::Bool(y)) => {
-                                self.stack.push(VmValue::Bool(x || y))
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Logical OR requires booleans"));
-                            }
-                        }
+                        self.execute_binary_operation::<bool, bool, _>(&mut frame, |x, y| x || y)?;
                     }
                     Instruction::Not => {
-                        let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match a {
-                            VmValue::Bool(x) => self.stack.push(VmValue::Bool(!x)),
-                            _ => {
-                                return Err(VMError::type_error("Logical NOT requires boolean"));
-                            }
-                        }
+                        let a = frame.pop_stack()?;
+                        let x: bool = a.try_into()?;
+                        frame.stack.push(VmValue::Bool(!x));
                     }
                     Instruction::Jump(offset) => {
                         frame.pc += offset;
                     }
                     Instruction::JumpIfFalse(offset) => {
-                        let condition = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        match condition {
-                            VmValue::Bool(false) => {
-                                frame.pc += offset;
-                            }
-                            VmValue::Bool(true) => {
-                                // Continue to next instruction
-                            }
-                            _ => {
-                                return Err(VMError::type_error("Jump condition must be boolean"));
-                            }
+                        let condition = frame.pop_stack()?;
+                        let cond: bool = condition.try_into()?;
+                        if !cond {
+                            frame.pc += offset;
                         }
                     }
                 }
             }
+            if let Some(prev_frame) = self.call_stack.last_mut() {
+                prev_frame.stack.push(return_value.clone());
+            }
         }
 
-        Ok(self.stack.pop().unwrap_or(VmValue::Unit))
+        Ok(return_value)
     }
 
     fn create_partial_application(&self, op: &str, first_arg: VmValue) -> Result<VmValue, VMError> {
@@ -277,21 +196,17 @@ impl VM {
             ">" => Instruction::Gt,
             "&&" => Instruction::And,
             "||" => Instruction::Or,
-            "!" => {
-                // Unary operation - apply immediately
-                match first_arg {
-                    VmValue::Bool(b) => return Ok(VmValue::Bool(!b)),
-                    _ => {
-                        return Err(VMError::type_error("Logical NOT requires boolean"));
-                    }
+            "!" => match first_arg {
+                VmValue::Bool(b) => return Ok(VmValue::Bool(!b)),
+                _ => {
+                    return Err(VMError::type_error("Logical NOT requires boolean"));
                 }
-            }
+            },
             _ => {
                 return Err(VMError::invalid_operation(op, first_arg.to_string()));
             }
         };
 
-        // Create a closure that captures the first argument and applies the operation
         let body = vec![
             Instruction::LoadVar("__first".to_string()),
             Instruction::LoadVar("__second".to_string()),
@@ -299,27 +214,50 @@ impl VM {
             Instruction::Return,
         ];
 
-        let env = Rc::new(RefCell::new(
-            VmEnv::default().extend("__first".to_string(), first_arg),
-        ));
+        let env = VmEnv::empty().extend("__first".to_string(), first_arg);
 
         Ok(VmValue::Closure {
-            fn_name: None,
             arg_name: "__second".to_string(),
             body,
-            env,
+            env: Rc::new(RefCell::new(env)),
         })
     }
 
-    pub fn get_env(&self) -> Rc<RefCell<VmEnv>> {
-        self.env.clone()
+    fn execute_division(&mut self, frame: &mut CallFrame) -> Result<(), VMError> {
+        let b = frame.pop_stack()?;
+        let a = frame.pop_stack()?;
+        let x: f64 = a.try_into()?;
+        let y: f64 = b.try_into()?;
+        if y == 0.0 {
+            return Err(VMError::DivisionByZero);
+        }
+        frame.stack.push(VmValue::Num(x / y));
+        Ok(())
     }
 
-    pub fn set_var(&mut self, name: String, value: VmValue) {
-        self.env.borrow_mut().set(name, value);
+    fn execute_binary_operation<T, U, F>(
+        &mut self,
+        frame: &mut CallFrame,
+        op: F,
+    ) -> Result<(), VMError>
+    where
+        T: TryFrom<VmValue, Error = VMError>,
+        U: Into<VmValue>,
+        F: FnOnce(T, T) -> U,
+    {
+        let b = frame.pop_stack()?;
+        let a = frame.pop_stack()?;
+        let x: T = a.try_into()?;
+        let y: T = b.try_into()?;
+        frame.stack.push(op(x, y).into());
+        Ok(())
     }
 
-    pub fn get_stack(&self) -> &Vec<VmValue> {
-        &self.stack
+    fn extract_closure_body(&mut self, frame: &mut CallFrame, body_len: usize) -> Vec<Instruction> {
+        let body_start = frame.pc;
+        let body_end = frame.pc + body_len;
+        let body = frame.instructions[body_start..body_end].to_vec();
+        frame.pc = body_end;
+        body
     }
 }

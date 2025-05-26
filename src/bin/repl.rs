@@ -1,11 +1,12 @@
 use ariadne::Source;
 use lamina_lang::{
     parser::ParseError,
-    vm::{Compiler, VM},
+    vm::{Compiler, Instruction, VM, VmEnv},
 };
 use rustyline::DefaultEditor;
 
 const HISTORY_PATH: &str = ".lamina_history";
+const MAX_CALL_STACK_DEPTH: usize = 1024;
 
 fn print_errors<'src>(error: ParseError<'src>, input: &'src str) -> anyhow::Result<()> {
     let source = Source::from(input);
@@ -18,37 +19,47 @@ fn print_help() {
     println!("  :help     - Show this help message");
     println!("  :stack    - Show the current VM stack");
     println!("  :env      - Show the current environment bindings");
+    println!("  :instructions - Show the last compiled instructions");
     println!("  :clear    - Clear the VM state (stack and environment)");
     println!("  :quit     - Exit the REPL");
     println!();
 }
 
-fn handle_repl_command(command: &str, vm: &mut VM) -> bool {
+fn handle_repl_command(
+    command: &str,
+    vm: &mut VM,
+    last_instructions: &Option<Vec<lamina_lang::vm::Instruction>>,
+) -> bool {
     match command.trim() {
         ":help" | ":h" => {
             print_help();
             true
         }
-        ":stack" | ":s" => {
-            println!("VM Stack (top to bottom):");
-            if vm.stack.is_empty() {
-                println!("  (empty)");
-            } else {
-                for (i, value) in vm.stack.iter().rev().enumerate() {
-                    println!("  {}: {}", i, value);
-                }
-            }
-            true
-        }
         ":env" | ":e" => {
             println!("Environment bindings:");
-            for (name, value) in &vm.env.borrow().bindings {
+            for (name, value) in vm
+                .env
+                .borrow()
+                .into_iter()
+                .filter(|(_, value)| !value.is_builtin())
+            {
                 println!("  {} = {}", name, value);
             }
             true
         }
+        ":instructions" | ":i" => {
+            println!("Last compiled instructions:");
+            if let Some(instrs) = last_instructions {
+                for (i, instr) in instrs.iter().enumerate() {
+                    println!("  {}: {:?}", i, instr);
+                }
+            } else {
+                println!("  (none)");
+            }
+            true
+        }
         ":clear" | ":c" => {
-            *vm = VM::default();
+            *vm = VM::new(MAX_CALL_STACK_DEPTH, VmEnv::builtins());
             println!("VM state cleared.");
             true
         }
@@ -68,7 +79,8 @@ fn main() -> anyhow::Result<()> {
     println!("Type :help for available commands.");
     let mut rl = DefaultEditor::new()?;
     let _ = rl.load_history(HISTORY_PATH);
-    let mut vm = VM::new();
+    let mut vm = VM::new(MAX_CALL_STACK_DEPTH, VmEnv::builtins());
+    let mut last_instructions: Option<Vec<Instruction>> = None;
 
     'outer: loop {
         let mut line = String::new();
@@ -83,7 +95,7 @@ fn main() -> anyhow::Result<()> {
             // Handle REPL commands
             if line.trim().starts_with(':') {
                 rl.add_history_entry(line.trim())?;
-                if !handle_repl_command(&line, &mut vm) {
+                if !handle_repl_command(&line, &mut vm, &last_instructions) {
                     break 'outer;
                 }
                 break;
@@ -93,8 +105,10 @@ fn main() -> anyhow::Result<()> {
             match compiler.compile_input(&line) {
                 Ok(instructions) => {
                     rl.add_history_entry(line.trim())?;
+                    last_instructions = Some(instructions.clone());
                     match vm.execute(instructions) {
-                        Ok(value) => println!("{}", value),
+                        Ok(value) if !value.is_unit() => println!("{}", value),
+                        Ok(_) => (),
                         Err(err) => println!("{}", err),
                     }
                     break;

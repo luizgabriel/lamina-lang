@@ -7,14 +7,15 @@ use crate::{
 
 use super::Instruction;
 
-#[derive(Default)]
 pub struct Compiler {
     instructions: Vec<Instruction>,
 }
 
 impl Compiler {
     pub fn new() -> Self {
-        Compiler::default()
+        Self {
+            instructions: Vec::new(),
+        }
     }
 
     pub fn compile_input<'src>(
@@ -39,7 +40,23 @@ impl Compiler {
     pub fn compile_ast(&mut self, expr: Spanned<AstExpr>) -> Vec<Instruction> {
         let ir = lowering_expr(expr);
         self.compile_ir(ir.0);
+        self.instructions.push(Instruction::Return);
         std::mem::take(&mut self.instructions)
+    }
+
+    /// Helper method to compile a function body and return the instructions with a Return at the end
+    fn compile_function_body(&mut self, body: IrExpr) -> Vec<Instruction> {
+        let mut body_compiler = Compiler::new();
+        body_compiler.compile_ir(body);
+        body_compiler.instructions.push(Instruction::Return);
+        body_compiler.instructions
+    }
+
+    /// Helper method to compile an expression and return the instructions without a Return
+    fn compile_expression(&mut self, expr: IrExpr) -> Vec<Instruction> {
+        let mut expr_compiler = Compiler::new();
+        expr_compiler.compile_ir(expr);
+        expr_compiler.instructions
     }
 
     fn compile_ir(&mut self, expr: IrExpr) {
@@ -60,30 +77,26 @@ impl Compiler {
                 self.instructions.push(Instruction::MakeTuple(size));
             }
             IrExpr::Lambda { arg, body } => {
-                let mut body_compiler = Compiler::new();
-                body_compiler.compile_ir(body.0.clone());
-                body_compiler.instructions.push(Instruction::Return);
+                let body_instructions = self.compile_function_body(body.0.clone());
 
                 self.instructions.push(Instruction::MakeClosure {
-                    fn_name: Some(arg.0.to_string()),
                     arg_name: arg.0.to_string(),
-                    body_len: body_compiler.instructions.len(),
+                    body_len: body_instructions.len(),
                 });
-                self.instructions.extend(body_compiler.instructions);
+                self.instructions.extend(body_instructions);
             }
             IrExpr::Let { name, rhs, then } => {
                 match rhs.0 {
                     IrExpr::Lambda { arg, body } => {
-                        let mut body_compiler = Compiler::new();
-                        body_compiler.compile_ir(body.0.clone());
-                        body_compiler.instructions.push(Instruction::Return);
+                        let body_instructions = self.compile_function_body(body.0.clone());
 
-                        self.instructions.push(Instruction::MakeClosure {
-                            fn_name: Some(name.0.to_string()),
+                        self.instructions.push(Instruction::MakeRecursiveClosure {
+                            fn_name: name.0.to_string(),
                             arg_name: arg.0.to_string(),
-                            body_len: body_compiler.instructions.len(),
+                            body_len: body_instructions.len(),
                         });
-                        self.instructions.extend(body_compiler.instructions);
+
+                        self.instructions.extend(body_instructions);
                     }
                     _ => {
                         self.compile_ir(rhs.0.clone());
@@ -108,13 +121,8 @@ impl Compiler {
                 self.compile_ir((*condition).0);
 
                 // Compile then and else branches separately to get their lengths
-                let mut then_compiler = Compiler::new();
-                then_compiler.compile_ir((*then_branch).0);
-                let then_instructions = then_compiler.instructions;
-
-                let mut else_compiler = Compiler::new();
-                else_compiler.compile_ir((*else_branch).0);
-                let else_instructions = else_compiler.instructions;
+                let then_instructions = self.compile_expression((*then_branch).0);
+                let else_instructions = self.compile_expression((*else_branch).0);
 
                 // JumpIfFalse to else branch (skip then branch + jump instruction)
                 self.instructions

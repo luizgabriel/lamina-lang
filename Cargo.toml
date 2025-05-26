@@ -7,9 +7,10 @@ edition = "2024"
 anyhow = "1.0.98"
 ariadne = "0.5.1"
 chumsky = { version = "0.10.1", features = ["memoization", "pratt"] }
+colored = "3.0.0"
 im = "15.1.0"
-rustyline = "15.0.0"
-thiserror = "1.0"
+rustyline = "16.0.0"
+thiserror = "2.0.12"
 trait-set = "0.3.0"
 
 [dev-dependencies]

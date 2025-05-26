@@ -1,35 +1,41 @@
 use super::VmValue;
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VmEnv {
-    pub bindings: im::HashMap<String, VmValue>,
+    bindings: im::HashMap<String, VmValue>,
 }
 
 impl VmEnv {
+    pub fn empty() -> Self {
+        Self {
+            bindings: im::HashMap::new(),
+        }
+    }
+
     pub fn builtins() -> Self {
-        let mut env = VmEnv::default();
+        let mut env = VmEnv::empty();
 
         // Add built-in functions as native functions
         env.bindings
-            .insert("+".to_string(), VmValue::NativeFn("+".to_string()));
+            .insert("+".to_string(), VmValue::BuiltInFn("+".to_string()));
         env.bindings
-            .insert("-".to_string(), VmValue::NativeFn("-".to_string()));
+            .insert("-".to_string(), VmValue::BuiltInFn("-".to_string()));
         env.bindings
-            .insert("*".to_string(), VmValue::NativeFn("*".to_string()));
+            .insert("*".to_string(), VmValue::BuiltInFn("*".to_string()));
         env.bindings
-            .insert("/".to_string(), VmValue::NativeFn("/".to_string()));
+            .insert("/".to_string(), VmValue::BuiltInFn("/".to_string()));
         env.bindings
-            .insert("==".to_string(), VmValue::NativeFn("==".to_string()));
+            .insert("==".to_string(), VmValue::BuiltInFn("==".to_string()));
         env.bindings
-            .insert("<".to_string(), VmValue::NativeFn("<".to_string()));
+            .insert("<".to_string(), VmValue::BuiltInFn("<".to_string()));
         env.bindings
-            .insert(">".to_string(), VmValue::NativeFn(">".to_string()));
+            .insert(">".to_string(), VmValue::BuiltInFn(">".to_string()));
         env.bindings
-            .insert("&&".to_string(), VmValue::NativeFn("&&".to_string()));
+            .insert("&&".to_string(), VmValue::BuiltInFn("&&".to_string()));
         env.bindings
-            .insert("||".to_string(), VmValue::NativeFn("||".to_string()));
+            .insert("||".to_string(), VmValue::BuiltInFn("||".to_string()));
         env.bindings
-            .insert("!".to_string(), VmValue::NativeFn("!".to_string()));
+            .insert("!".to_string(), VmValue::BuiltInFn("!".to_string()));
 
         env
     }
@@ -46,5 +52,14 @@ impl VmEnv {
         let mut new_env = self.clone();
         new_env.set(name, value);
         new_env
+    }
+}
+
+impl<'a> IntoIterator for &'a VmEnv {
+    type Item = (&'a String, &'a VmValue);
+    type IntoIter = im::hashmap::Iter<'a, String, VmValue>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.bindings.iter()
     }
 }
