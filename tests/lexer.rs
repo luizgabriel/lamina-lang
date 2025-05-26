@@ -29,6 +29,19 @@ fn test_keywords() {
 }
 
 #[test]
+fn test_if_keywords() {
+    let src = "if then else";
+    assert_lex!(
+        src,
+        [
+            (Token::If, span(0, 2)),
+            (Token::Then, span(3, 7)),
+            (Token::Else, span(8, 12)),
+        ]
+    );
+}
+
+#[test]
 fn test_identifiers() {
     let src = "foo bar";
     assert_lex!(

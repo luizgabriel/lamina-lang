@@ -81,3 +81,21 @@ fn test_error_cases() {
     assert_err!(compile_and_execute("true + 5"));
     assert_err!(compile_and_execute("5 && true"));
 }
+
+#[test]
+fn test_if_expressions() {
+    // Simple if expressions
+    assert_vm!("if true then 1 else 2", "1");
+    assert_vm!("if false then 1 else 2", "2");
+
+    // If with comparisons
+    assert_vm!("if 5 > 3 then 42 else 0", "42");
+    assert_vm!("if 2 > 5 then 42 else 0", "0");
+
+    // Nested if expressions
+    assert_vm!("if true then (if false then 1 else 2) else 3", "2");
+
+    // If with variables in blocks
+    assert_vm!("{ let x = 5; if x > 3 then x + 1 else x - 1 }", "6");
+    assert_vm!("{ let x = 2; if x > 3 then x + 1 else x - 1 }", "1");
+}

@@ -20,6 +20,11 @@ pub enum IrExpr<'src> {
         lhs: Box<Spanned<IrExpr<'src>>>,
         rhs: Box<Spanned<IrExpr<'src>>>,
     },
+    If {
+        condition: Box<Spanned<IrExpr<'src>>>,
+        then_branch: Box<Spanned<IrExpr<'src>>>,
+        else_branch: Box<Spanned<IrExpr<'src>>>,
+    },
 }
 
 impl Display for IrExpr<'_> {
@@ -41,6 +46,17 @@ impl Display for IrExpr<'_> {
                 write!(f, "let {} = {} in {}", name.0, rhs.0, then.0)
             }
             IrExpr::FnApp { lhs, rhs } => write!(f, "{} {}", lhs.0, rhs.0),
+            IrExpr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                write!(
+                    f,
+                    "if {} then {} else {}",
+                    condition.0, then_branch.0, else_branch.0
+                )
+            }
         }
     }
 }
@@ -81,6 +97,18 @@ impl<'src> IrExpr<'src> {
         IrExpr::FnApp {
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
+        }
+    }
+
+    pub fn if_expr(
+        condition: Spanned<IrExpr<'src>>,
+        then_branch: Spanned<IrExpr<'src>>,
+        else_branch: Spanned<IrExpr<'src>>,
+    ) -> Self {
+        IrExpr::If {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_branch),
+            else_branch: Box::new(else_branch),
         }
     }
 }

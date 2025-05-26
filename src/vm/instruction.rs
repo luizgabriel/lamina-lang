@@ -15,6 +15,10 @@ pub enum Instruction {
     // Tuple operations
     MakeTuple(usize), // number of elements
 
+    // Control flow
+    Jump(usize),        // Jump forward by n instructions
+    JumpIfFalse(usize), // Jump forward by n instructions if top of stack is false
+
     // Binary operations (native implementations)
     Add,
     Sub,

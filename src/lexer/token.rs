@@ -13,6 +13,9 @@ pub enum Token<'src> {
     Fn,
     True,
     False,
+    If,
+    Then,
+    Else,
 }
 
 impl Display for Token<'_> {
@@ -29,6 +32,9 @@ impl Display for Token<'_> {
             Token::Fn => write!(f, "fn"),
             Token::True => write!(f, "true"),
             Token::False => write!(f, "false"),
+            Token::If => write!(f, "if"),
+            Token::Then => write!(f, "then"),
+            Token::Else => write!(f, "else"),
         }
     }
 }

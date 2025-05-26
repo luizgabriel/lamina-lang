@@ -214,6 +214,23 @@ impl VM {
                             }
                         }
                     }
+                    Instruction::Jump(offset) => {
+                        frame.pc += offset;
+                    }
+                    Instruction::JumpIfFalse(offset) => {
+                        let condition = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        match condition {
+                            VmValue::Bool(false) => {
+                                frame.pc += offset;
+                            }
+                            VmValue::Bool(true) => {
+                                // Continue to next instruction
+                            }
+                            _ => {
+                                return Err(VMError::type_error("Jump condition must be boolean"));
+                            }
+                        }
+                    }
                 }
             }
         }

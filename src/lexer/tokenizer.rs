@@ -13,6 +13,9 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
             "fn" => Token::Fn,
             "true" => Token::True,
             "false" => Token::False,
+            "if" => Token::If,
+            "then" => Token::Then,
+            "else" => Token::Else,
             s => Token::Ident(s),
         })
         .labelled("keyword/identifier");

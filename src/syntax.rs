@@ -115,6 +115,11 @@ pub enum AstExpr<'src> {
         statements: Vec<Spanned<AstStmt<'src>>>,
         expr: Option<Box<Spanned<Self>>>,
     },
+    If {
+        condition: Box<Spanned<AstExpr<'src>>>,
+        then_branch: Box<Spanned<AstExpr<'src>>>,
+        else_branch: Box<Spanned<AstExpr<'src>>>,
+    },
 }
 
 impl<'src> AstExpr<'src> {
@@ -151,6 +156,18 @@ impl<'src> AstExpr<'src> {
             expr: expr.map(Box::new),
         }
     }
+
+    pub fn if_expr(
+        condition: Spanned<Self>,
+        then_branch: Spanned<Self>,
+        else_branch: Spanned<Self>,
+    ) -> Self {
+        AstExpr::If {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_branch),
+            else_branch: Box::new(else_branch),
+        }
+    }
 }
 
 impl Display for AstExpr<'_> {
@@ -180,6 +197,15 @@ impl Display for AstExpr<'_> {
                 expr.as_ref()
                     .map(|e| format!("; {}", e.0))
                     .unwrap_or_default(),
+            ),
+            AstExpr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => write!(
+                f,
+                "if {} then {} else {}",
+                condition.0, then_branch.0, else_branch.0
             ),
         }
     }

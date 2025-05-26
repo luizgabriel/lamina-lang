@@ -208,3 +208,51 @@ fn test_block() {
         )
     );
 }
+
+#[test]
+fn test_if_expr() {
+    assert_expr!(
+        "if true then 1 else 2",
+        (
+            AstExpr::if_expr(
+                (AstExpr::literal(true), span(3, 7)),
+                (AstExpr::literal(1.0), span(13, 14)),
+                (AstExpr::literal(2.0), span(20, 21))
+            ),
+            span(0, 21)
+        )
+    );
+
+    assert_expr!(
+        "if x < 5 then x + 1 else x - 1",
+        (
+            AstExpr::if_expr(
+                (
+                    AstExpr::op_app(
+                        ("<", span(5, 6)),
+                        (AstExpr::ident("x"), span(3, 4)),
+                        (AstExpr::literal(5.0), span(7, 8))
+                    ),
+                    span(3, 8)
+                ),
+                (
+                    AstExpr::op_app(
+                        ("+", span(16, 17)),
+                        (AstExpr::ident("x"), span(14, 15)),
+                        (AstExpr::literal(1.0), span(18, 19))
+                    ),
+                    span(14, 19)
+                ),
+                (
+                    AstExpr::op_app(
+                        ("-", span(27, 28)),
+                        (AstExpr::ident("x"), span(25, 26)),
+                        (AstExpr::literal(1.0), span(29, 30))
+                    ),
+                    span(25, 30)
+                )
+            ),
+            span(0, 30)
+        )
+    );
+}

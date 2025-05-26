@@ -108,6 +108,24 @@ fn parens<'src, I: TokenInput<'src>>(
     ))
 }
 
+fn if_expr<'src, I: TokenInput<'src>>(
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>> {
+    just(Token::If)
+        .ignore_then(expr.clone())
+        .then_ignore(just(Token::Then))
+        .then(expr.clone())
+        .then_ignore(just(Token::Else))
+        .then(expr)
+        .map_with(|((condition, then_branch), else_branch), e| {
+            (
+                AstExpr::if_expr(condition, then_branch, else_branch),
+                e.span(),
+            )
+        })
+        .labelled("if expression")
+}
+
 pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>
 {
     recursive(|expr| {
@@ -117,7 +135,10 @@ pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spa
         // (<expr>)
         let parens = parens(expr.clone());
 
-        let atom = choice((identifier_expr(), literal_expr(), parens, block));
+        // if <expr> then <expr> else <expr>
+        let if_expr = if_expr(expr.clone());
+
+        let atom = choice((identifier_expr(), literal_expr(), parens, block, if_expr));
 
         atom.pratt((
             // function application

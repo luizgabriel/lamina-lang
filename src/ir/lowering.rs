@@ -67,5 +67,17 @@ pub fn lowering_expr((expr, span): Spanned<AstExpr<'_>>) -> Spanned<IrExpr<'_>> 
             let op_app = (IrExpr::fn_app(op_ident, lhs), op_app_span);
             (IrExpr::fn_app(op_app, rhs), span)
         }
+        AstExpr::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => (
+            IrExpr::if_expr(
+                lowering_expr(*condition),
+                lowering_expr(*then_branch),
+                lowering_expr(*else_branch),
+            ),
+            span,
+        ),
     }
 }

@@ -81,6 +81,37 @@ impl Compiler {
                 self.compile_ir((*rhs).0);
                 self.instructions.push(Instruction::Call);
             }
+            IrExpr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                // Compile condition
+                self.compile_ir((*condition).0);
+
+                // Compile then and else branches separately to get their lengths
+                let mut then_compiler = Compiler::new();
+                then_compiler.compile_ir((*then_branch).0);
+                let then_instructions = then_compiler.instructions;
+
+                let mut else_compiler = Compiler::new();
+                else_compiler.compile_ir((*else_branch).0);
+                let else_instructions = else_compiler.instructions;
+
+                // JumpIfFalse to else branch (skip then branch + jump instruction)
+                self.instructions
+                    .push(Instruction::JumpIfFalse(then_instructions.len() + 1));
+
+                // Add then branch instructions
+                self.instructions.extend(then_instructions);
+
+                // Jump over else branch
+                self.instructions
+                    .push(Instruction::Jump(else_instructions.len()));
+
+                // Add else branch instructions
+                self.instructions.extend(else_instructions);
+            }
         }
     }
 }

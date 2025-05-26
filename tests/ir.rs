@@ -91,3 +91,62 @@ fn test_block() {
         )
     );
 }
+
+#[test]
+fn test_op_app() {
+    assert_hir!(
+        "1 + 2",
+        (
+            IrExpr::fn_app(
+                (
+                    IrExpr::fn_app(
+                        (IrExpr::ident("+"), span(2, 3)),
+                        (IrExpr::literal(1.0), span(0, 1))
+                    ),
+                    span(0, 3)
+                ),
+                (IrExpr::literal(2.0), span(4, 5))
+            ),
+            span(0, 5)
+        )
+    );
+}
+
+#[test]
+fn test_if_lowering() {
+    assert_hir!(
+        "if true then 1 else 2",
+        (
+            IrExpr::if_expr(
+                (IrExpr::literal(true), span(3, 7)),
+                (IrExpr::literal(1.0), span(13, 14)),
+                (IrExpr::literal(2.0), span(20, 21))
+            ),
+            span(0, 21)
+        )
+    );
+
+    assert_hir!(
+        "if x < 5 then x else 0",
+        (
+            IrExpr::if_expr(
+                (
+                    IrExpr::fn_app(
+                        (
+                            IrExpr::fn_app(
+                                (IrExpr::ident("<"), span(5, 6)),
+                                (IrExpr::ident("x"), span(3, 4))
+                            ),
+                            span(3, 6)
+                        ),
+                        (IrExpr::literal(5.0), span(7, 8))
+                    ),
+                    span(3, 8)
+                ),
+                (IrExpr::ident("x"), span(14, 15)),
+                (IrExpr::literal(0.0), span(21, 22))
+            ),
+            span(0, 22)
+        )
+    );
+}
