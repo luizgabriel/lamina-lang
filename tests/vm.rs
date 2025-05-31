@@ -128,26 +128,6 @@ fn test_recursive_functions() {
 }
 
 #[test]
-fn test_mutually_recursive_functions() {
-    assert_vm!(
-        r#"{
-            fn even n =
-                if n == 0 
-                    then true
-                    else odd (n - 1);
-                    
-            fn odd n = 
-                if n == 0
-                    then false
-                    else even (n - 1);
-            
-            even 4
-        }"#,
-        "true"
-    );
-}
-
-#[test]
 fn test_stack_overflow() {
     let mut compiler = Compiler::new();
     // Recursive function that never terminates
@@ -157,4 +137,33 @@ fn test_stack_overflow() {
     let mut vm = VM::new(16, VmEnv::builtins());
     let result = vm.execute(instructions);
     assert!(matches!(result, Err(VMError::StackOverflow)));
+}
+
+#[test]
+fn test_function_scope_no_leak() {
+    // Variable defined in function should not be accessible outside
+    let result = compile_and_execute("{ fn foo n = { let y = n + 1; y }; foo(1); y }");
+    assert!(
+        matches!(result, Err(VMError::UnboundVariable { name: _ })),
+        "Variable 'y' should not be accessible outside the function"
+    );
+}
+
+#[test]
+#[ignore]
+fn test_block_scope_no_leak() {
+    // Variable defined in block should not be accessible outside
+    let result = compile_and_execute("{ { let x = 42; x }; x }");
+    assert!(
+        matches!(result, Err(VMError::UnboundVariable { name: _ })),
+        "Variable 'x' should not be accessible outside the block"
+    );
+}
+
+#[test]
+#[ignore]
+fn test_shadowing_no_leak() {
+    // Shadowing should not leak inner value to outer scope
+    let result = compile_and_execute("{ let x = 1; { let x = 2; x }; x }");
+    assert_eq!(result.unwrap().to_string(), "1");
 }

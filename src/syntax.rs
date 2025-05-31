@@ -229,9 +229,11 @@ impl Display for AstStmt<'_> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AstType {
+    Unit,
     Var(usize),
     Num,
     Bool,
+    Tuple(Vec<AstType>),
     Fn(Box<AstType>, Box<AstType>),
 }
 
@@ -256,10 +258,30 @@ impl AstType {
 impl Display for AstType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            AstType::Unit => write!(f, "unit"),
             AstType::Var(n) => write!(f, "{}", n),
             AstType::Num => write!(f, "num"),
             AstType::Bool => write!(f, "bool"),
+            AstType::Tuple(items) => write!(
+                f,
+                "({})",
+                items
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             AstType::Fn(arg, ret) => write!(f, "({} -> {})", arg, ret),
+        }
+    }
+}
+
+impl From<&AstLiteral> for AstType {
+    fn from(literal: &AstLiteral) -> Self {
+        match literal {
+            AstLiteral::Unit => AstType::Unit,
+            AstLiteral::Num(_) => AstType::Num,
+            AstLiteral::Bool(_) => AstType::Bool,
         }
     }
 }

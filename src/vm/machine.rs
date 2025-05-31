@@ -72,7 +72,7 @@ impl VM {
                         body_len,
                     } => {
                         let body = self.extract_closure_body(&mut frame, *body_len);
-                        let env = frame.env.clone();
+                        let env = Rc::new(RefCell::new(frame.env.borrow().clone()));
                         let closure = VmValue::Closure {
                             arg_name: arg_name.clone(),
                             body,
@@ -86,7 +86,7 @@ impl VM {
                         let closure = VmValue::Closure {
                             arg_name: arg_name.clone(),
                             body,
-                            env: frame.env.clone(),
+                            env: Rc::new(RefCell::new(frame.env.borrow().clone())),
                         };
                         frame.stack.push(closure);
                     }
