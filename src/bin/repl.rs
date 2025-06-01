@@ -1,12 +1,13 @@
+use std::fmt::Display;
+
 use ariadne::Source;
 use lamina_lang::{
-    parser::ParseError,
-    vm::{Compiler, Instruction, VM, VmEnv},
+    interpreter::{Environment, InterpreterError, Value, eval, eval_stmt},
+    parser::{ParseError, parse_expr, parse_stmt},
 };
 use rustyline::DefaultEditor;
 
 const HISTORY_PATH: &str = ".lamina_history";
-const MAX_CALL_STACK_DEPTH: usize = 1024;
 
 fn print_errors<'src>(error: ParseError<'src>, input: &'src str) -> anyhow::Result<()> {
     let source = Source::from(input);
@@ -17,19 +18,61 @@ fn print_errors<'src>(error: ParseError<'src>, input: &'src str) -> anyhow::Resu
 fn print_help() {
     println!("Lamina Lang REPL Commands:");
     println!("  :help     - Show this help message");
-    println!("  :stack    - Show the current VM stack");
     println!("  :env      - Show the current environment bindings");
-    println!("  :instructions - Show the last compiled instructions");
-    println!("  :clear    - Clear the VM state (stack and environment)");
+    println!("  :clear    - Clear the interpreter state (environment)");
     println!("  :quit     - Exit the REPL");
     println!();
 }
 
-fn handle_repl_command(
-    command: &str,
-    vm: &mut VM,
-    last_instructions: &Option<Vec<lamina_lang::vm::Instruction>>,
-) -> bool {
+#[derive(Debug)]
+enum REPLError<'src> {
+    ParseError(ParseError<'src>),
+    EvalError(InterpreterError),
+}
+
+impl<'src> Display for REPLError<'src> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            REPLError::ParseError(err) => write!(f, "Parse error: {err}"),
+            REPLError::EvalError(err) => write!(f, "Evaluation error: {err}"),
+        }
+    }
+}
+
+impl<'src> From<ParseError<'src>> for REPLError<'src> {
+    fn from(err: ParseError<'src>) -> Self {
+        REPLError::ParseError(err)
+    }
+}
+
+impl<'src> From<InterpreterError> for REPLError<'src> {
+    fn from(err: InterpreterError) -> Self {
+        REPLError::EvalError(err)
+    }
+}
+
+enum ValOrEnv {
+    Val(Value),
+    Env(Environment),
+}
+
+fn eval_input<'src>(input: &'src str, env: &'_ Environment) -> Result<ValOrEnv, REPLError<'src>> {
+    match parse_expr(input) {
+        Ok(stmt) => {
+            let value = eval(&stmt.0, env)?;
+            Ok(ValOrEnv::Val(value))
+        }
+        Err(_) => match parse_stmt(input) {
+            Ok(stmt) => {
+                let env = eval_stmt(&stmt.0, env)?;
+                Ok(ValOrEnv::Env(env))
+            }
+            Err(err) => Err(err.into()),
+        },
+    }
+}
+
+fn handle_repl_command(command: &str, env: &mut Environment) -> bool {
     match command.trim() {
         ":help" | ":h" => {
             print_help();
@@ -37,50 +80,29 @@ fn handle_repl_command(
         }
         ":env" | ":e" => {
             println!("Environment bindings:");
-            for (name, value) in vm
-                .env
-                .borrow()
-                .into_iter()
-                .filter(|(_, value)| !value.is_builtin())
-            {
-                println!("  {} = {}", name, value);
-            }
-            true
-        }
-        ":instructions" | ":i" => {
-            println!("Last compiled instructions:");
-            if let Some(instrs) = last_instructions {
-                for (i, instr) in instrs.iter().enumerate() {
-                    println!("  {}: {:?}", i, instr);
-                }
-            } else {
-                println!("  (none)");
+            for (name, value) in env.into_iter().filter(|(_, value)| !value.is_builtin()) {
+                println!("  {name} = {value}");
             }
             true
         }
         ":clear" | ":c" => {
-            *vm = VM::new(MAX_CALL_STACK_DEPTH, VmEnv::builtins());
-            println!("VM state cleared.");
+            *env = Environment::builtins();
             true
         }
         ":quit" | ":q" => false,
         _ => {
-            println!(
-                "Unknown command: {}. Type :help for available commands.",
-                command
-            );
+            println!("Unknown command: {command}. Type :help for available commands.");
             true
         }
     }
 }
 
 fn main() -> anyhow::Result<()> {
-    println!("Lamina Lang - REPL");
+    println!("Lamina Lang - REPL (Interpreter Mode)");
     println!("Type :help for available commands.");
     let mut rl = DefaultEditor::new()?;
     let _ = rl.load_history(HISTORY_PATH);
-    let mut vm = VM::new(MAX_CALL_STACK_DEPTH, VmEnv::builtins());
-    let mut last_instructions: Option<Vec<Instruction>> = None;
+    let mut env = Environment::builtins();
 
     'outer: loop {
         let mut line = String::new();
@@ -94,35 +116,41 @@ fn main() -> anyhow::Result<()> {
 
             // Handle REPL commands
             if line.trim().starts_with(':') {
-                rl.add_history_entry(line.trim())?;
-                if !handle_repl_command(&line, &mut vm, &last_instructions) {
+                if !handle_repl_command(&line, &mut env) {
                     break 'outer;
                 }
                 break;
             }
 
-            let mut compiler = Compiler::new();
-            match compiler.compile_input(&line) {
-                Ok(instructions) => {
+            match eval_input(&line, &env) {
+                Ok(ValOrEnv::Val(value)) => {
                     rl.add_history_entry(line.trim())?;
-                    last_instructions = Some(instructions.clone());
-                    match vm.execute(instructions) {
-                        Ok(value) if !value.is_unit() => println!("{}", value),
-                        Ok(_) => (),
-                        Err(err) => println!("{}", err),
-                    }
-                    break;
-                }
-                Err(err) => {
-                    if err.is_incomplete_input() {
-                        line.push_str("\n\t");
-                        continue;
-                    }
-
-                    print_errors(err, &line)?;
+                    println!("{}", value);
                     line.clear();
                     break;
                 }
+                Ok(ValOrEnv::Env(new_env)) => {
+                    rl.add_history_entry(line.trim())?;
+                    env = new_env;
+                    break;
+                }
+                Err(err) => match err {
+                    REPLError::ParseError(err) => {
+                        if err.is_incomplete_input() {
+                            line.push_str("\n\t");
+                            continue;
+                        }
+
+                        print_errors(err, &line)?;
+                        line.clear();
+                        break;
+                    }
+                    REPLError::EvalError(err) => {
+                        eprintln!("{err}");
+                        line.clear();
+                        break;
+                    }
+                },
             }
         }
     }

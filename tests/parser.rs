@@ -2,17 +2,22 @@ use chumsky::input::Stream;
 use chumsky::prelude::*;
 use lamina_lang::{
     lexer::{Span, lexer},
-    parser::{expression, statement},
-    syntax::{AstExpr, AstStmt},
+    parser::{AstExpr, AstStmt, expression, statement},
 };
 
 #[macro_export]
 macro_rules! assert_expr {
     ($src:expr, $expected:expr) => {
         let input = $src;
-        let tokens = lexer().parse($src).unwrap();
+        let tokens = lexer()
+            .parse($src)
+            .into_result()
+            .expect("Failed to lex input");
         let tokens = Stream::from_iter(tokens).map((0..input.len()).into(), |(t, s)| (t, s));
-        let ast = expression().parse(tokens).unwrap();
+        let ast = expression()
+            .parse(tokens)
+            .into_result()
+            .expect("Failed to parse expression");
         assert_eq!(ast, $expected);
     };
 }
@@ -20,9 +25,15 @@ macro_rules! assert_expr {
 macro_rules! assert_stmt {
     ($src:expr, $expected:expr) => {
         let input = $src;
-        let tokens = lexer().parse($src).unwrap();
+        let tokens = lexer()
+            .parse($src)
+            .into_result()
+            .expect("Failed to lex input");
         let tokens = Stream::from_iter(tokens).map((0..input.len()).into(), |(t, s)| (t, s));
-        let ast = statement(expression()).parse(tokens).unwrap();
+        let ast = statement(expression())
+            .parse(tokens)
+            .into_result()
+            .expect("Failed to parse statement");
         assert_eq!(ast, $expected);
     };
 }
@@ -77,7 +88,7 @@ fn test_op_app() {
         "1 + 2",
         (
             AstExpr::op_app(
-                ("+", span(2, 3)),
+                ("+".into(), span(2, 3)),
                 (AstExpr::literal(1.0), span(0, 1)),
                 (AstExpr::literal(2.0), span(4, 5))
             ),
@@ -106,7 +117,7 @@ fn binding_strength() {
         "f 1 + g 2",
         (
             AstExpr::op_app(
-                ("+", span(4, 5)),
+                ("+".into(), span(4, 5)),
                 (
                     AstExpr::fn_app(
                         (AstExpr::ident("f"), span(0, 1)),
@@ -133,11 +144,11 @@ fn test_fn_def() {
         "fn add x y = x + y;",
         (
             AstStmt::fn_def(
-                ("add", span(3, 6)),
-                vec![("x", span(7, 8)), ("y", span(9, 10))],
+                ("add".into(), span(3, 6)),
+                vec![("x".into(), span(7, 8)), ("y".into(), span(9, 10))],
                 (
                     AstExpr::op_app(
-                        ("+", span(15, 16)),
+                        ("+".into(), span(15, 16)),
                         (AstExpr::ident("x"), span(13, 14)),
                         (AstExpr::ident("y"), span(17, 18))
                     ),
@@ -181,16 +192,16 @@ fn test_block() {
         "#,
         (
             AstStmt::fn_def(
-                ("add", span(14, 17)),
-                vec![("x", span(18, 19)), ("y", span(20, 21))],
+                ("add".into(), span(14, 17)),
+                vec![("x".into(), span(18, 19)), ("y".into(), span(20, 21))],
                 (
                     AstExpr::block(
                         vec![(
                             AstStmt::let_def(
-                                ("sum", span(42, 45)),
+                                ("sum".into(), span(42, 45)),
                                 (
                                     AstExpr::op_app(
-                                        ("+", span(50, 51)),
+                                        ("+".into(), span(50, 51)),
                                         (AstExpr::ident("x"), span(48, 49)),
                                         (AstExpr::ident("y"), span(52, 53))
                                     ),
@@ -229,7 +240,7 @@ fn test_if_expr() {
             AstExpr::if_expr(
                 (
                     AstExpr::op_app(
-                        ("<", span(5, 6)),
+                        ("<".into(), span(5, 6)),
                         (AstExpr::ident("x"), span(3, 4)),
                         (AstExpr::literal(5.0), span(7, 8))
                     ),
@@ -237,7 +248,7 @@ fn test_if_expr() {
                 ),
                 (
                     AstExpr::op_app(
-                        ("+", span(16, 17)),
+                        ("+".into(), span(16, 17)),
                         (AstExpr::ident("x"), span(14, 15)),
                         (AstExpr::literal(1.0), span(18, 19))
                     ),
@@ -245,7 +256,7 @@ fn test_if_expr() {
                 ),
                 (
                     AstExpr::op_app(
-                        ("-", span(27, 28)),
+                        ("-".into(), span(27, 28)),
                         (AstExpr::ident("x"), span(25, 26)),
                         (AstExpr::literal(1.0), span(29, 30))
                     ),
@@ -253,6 +264,50 @@ fn test_if_expr() {
                 )
             ),
             span(0, 30)
+        )
+    );
+}
+
+#[test]
+fn test_lambda() {
+    assert_expr!(
+        "x -> 1",
+        (
+            AstExpr::lambda(
+                ("x".into(), span(0, 1)),
+                (AstExpr::literal(1.0), span(5, 6))
+            ),
+            span(0, 6)
+        )
+    );
+
+    assert_stmt!(
+        "let add = x -> y -> x + y;",
+        (
+            AstStmt::let_def(
+                ("add".into(), span(4, 7)),
+                (
+                    AstExpr::lambda(
+                        ("x".into(), span(10, 11)),
+                        (
+                            AstExpr::lambda(
+                                ("y".into(), span(15, 16)),
+                                (
+                                    AstExpr::op_app(
+                                        ("+".into(), span(22, 23)),
+                                        (AstExpr::ident("x"), span(20, 21)),
+                                        (AstExpr::ident("y"), span(24, 25))
+                                    ),
+                                    span(20, 25)
+                                )
+                            ),
+                            span(15, 25)
+                        )
+                    ),
+                    span(10, 25)
+                )
+            ),
+            span(0, 25)
         )
     );
 }

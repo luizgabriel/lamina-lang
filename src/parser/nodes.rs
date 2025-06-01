@@ -1,33 +1,32 @@
 use crate::lexer::{Span, Spanned, Token};
-use crate::syntax::{AstExpr, AstLiteral, AstModule, AstStmt};
+use crate::parser::{AstExpr, AstLiteral, AstModule, AstStmt};
 use chumsky::pratt::{infix, left};
 use chumsky::{Parser, prelude::*};
 use trait_set::trait_set;
 
 trait_set! {
     pub trait TokenInput<'src> = chumsky::input::ValueInput<'src, Token = Token<'src>, Span = Span>;
-    pub trait SyntaxParser<'src, I: TokenInput<'src>, T> = chumsky::Parser<'src, I, T, extra::Err<Rich<'src, Token<'src>, Span>>> + Clone;
+    pub trait SyntaxParser<'src, I: TokenInput<'src>, O> = chumsky::Parser<'src, I, O, extra::Err<Rich<'src, Token<'src>, Span>>> + Clone;
 }
 
 fn literal<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, AstLiteral> {
     select! {
-        Token::Num(n) => AstLiteral::Num(n),
-        Token::True => AstLiteral::Bool(true),
-        Token::False => AstLiteral::Bool(false),
+        Token::Num(n) => n.into(),
+        Token::True => true.into(),
+        Token::False => false.into(),
     }
     .labelled("literal")
 }
 
-fn ident<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<&'src str>> {
-    select! { Token::Ident(ident) => ident }.map_with(|s, e| (s, e.span()))
+fn ident<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<String>> {
+    select! { Token::Ident(ident) => ident.to_string() }.map_with(|s, e| (s, e.span()))
 }
 
-fn literal_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>> {
+fn literal_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     literal().map_with(|l, e| (AstExpr::literal(l), e.span()))
 }
 
-fn identifier_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>
-{
+fn identifier_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     let ident = select! { Token::Ident(ident) => ident }
         .map_with(|s, e| (AstExpr::ident(s), e.span()))
         .labelled("identifier");
@@ -40,15 +39,15 @@ fn identifier_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Sp
     choice((ident, op))
 }
 
-fn operator<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<&'src str>> {
-    select! { Token::Op(op) => op }
+fn operator<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<String>> {
+    select! { Token::Op(op) => op.to_string() }
         .map_with(|s, e| (s, e.span()))
         .labelled("operator")
 }
 
 fn let_def<'src, I: TokenInput<'src>>(
-    expr: impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>,
-) -> impl SyntaxParser<'src, I, Spanned<AstStmt<'src>>> {
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstStmt>> {
     let var = ident().labelled("variable name");
     let eq = just(Token::Op("="));
 
@@ -59,8 +58,8 @@ fn let_def<'src, I: TokenInput<'src>>(
 }
 
 pub fn statement<'src, I: TokenInput<'src>>(
-    expr: impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>,
-) -> impl SyntaxParser<'src, I, Spanned<AstStmt<'src>>> {
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstStmt>> {
     choice((
         let_def(expr.clone()),
         fn_def(expr.clone()),
@@ -70,8 +69,8 @@ pub fn statement<'src, I: TokenInput<'src>>(
 }
 
 fn block<'src, I: TokenInput<'src>>(
-    expr: impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>,
-) -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>> {
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     let open = just(Token::Ctrl('{'));
     let close = just(Token::Ctrl('}'));
 
@@ -85,8 +84,8 @@ fn block<'src, I: TokenInput<'src>>(
 }
 
 fn parens<'src, I: TokenInput<'src>>(
-    expr: impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>,
-) -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>> {
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     let open = just(Token::Ctrl('('));
     let close = just(Token::Ctrl(')'));
 
@@ -109,8 +108,8 @@ fn parens<'src, I: TokenInput<'src>>(
 }
 
 fn if_expr<'src, I: TokenInput<'src>>(
-    expr: impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>,
-) -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>> {
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     just(Token::If)
         .ignore_then(expr.clone())
         .then_ignore(just(Token::Then))
@@ -126,8 +125,19 @@ fn if_expr<'src, I: TokenInput<'src>>(
         .labelled("if expression")
 }
 
-pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>
-{
+// identifier -> <expr>
+fn lambda<'src, I: TokenInput<'src>>(
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
+    let param = ident().labelled("parameter");
+    let arrow = just(Token::Op("->")).labelled("->");
+
+    group((param, arrow, expr))
+        .map_with(|(name, _, body), e| (AstExpr::lambda(name, body), e.span()))
+        .labelled("lambda expression")
+}
+
+pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     recursive(|expr| {
         // { <expr>; <expr>; <expr> }
         let block = block(expr.clone());
@@ -138,7 +148,16 @@ pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spa
         // if <expr> then <expr> else <expr>
         let if_expr = if_expr(expr.clone());
 
-        let atom = choice((identifier_expr(), literal_expr(), parens, block, if_expr));
+        let lambda_expr = lambda(expr.clone());
+
+        let atom = choice((
+            block,
+            parens,
+            if_expr,
+            lambda_expr,
+            identifier_expr(),
+            literal_expr(),
+        ));
 
         atom.pratt((
             // function application
@@ -154,8 +173,8 @@ pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spa
 }
 
 fn fn_def<'src, I: TokenInput<'src>>(
-    expr: impl SyntaxParser<'src, I, Spanned<AstExpr<'src>>>,
-) -> impl SyntaxParser<'src, I, Spanned<AstStmt<'src>>> {
+    expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstStmt>> {
     let args = ident()
         .labelled("argument")
         .repeated()
@@ -173,11 +192,10 @@ fn fn_def<'src, I: TokenInput<'src>>(
         .labelled("function definition")
 }
 
-pub fn module<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstModule<'src>>> {
+pub fn module<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstModule>> {
     let item = statement(expression());
 
-    item.separated_by(just(Token::Semi))
-        .allow_trailing()
+    item.repeated()
         .collect::<Vec<_>>()
         .map_with(|items, e| (AstModule::new(items), e.span()))
         .labelled("module")
