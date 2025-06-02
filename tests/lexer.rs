@@ -85,9 +85,9 @@ fn test_parens() {
     assert_lex!(
         src,
         [
-            (Token::Ctrl('('), span(0, 1)),
+            (Token::OpenCtrl('('), span(0, 1)),
             (Token::Ident("foo"), span(1, 4)),
-            (Token::Ctrl(')'), span(4, 5)),
+            (Token::CloseCtrl(')'), span(4, 5)),
         ]
     );
 }
@@ -98,7 +98,7 @@ fn test_error_output() {
     let result = lexer().parse(src).into_result();
     snapshot!(
         result.unwrap_err().first().unwrap(),
-        r#"found ''@'' at 4..5 expected '' '', ''\t'', comment, number, semicolon, comma, newline, control character, operator, or keyword/identifier"#
+        r#"found ''@'' at 4..5 expected '' '', ''\t'', comment, number, semicolon, comma, newline, open control character, close control character, operator, or keyword/identifier"#
     );
 }
 
@@ -176,9 +176,9 @@ fn test_virtual_semicolon_after_closing_paren() {
     assert_lex!(
         src,
         [
-            (Token::Ctrl('('), span(0, 1)),
+            (Token::OpenCtrl('('), span(0, 1)),
             (Token::Ident("foo"), span(1, 4)),
-            (Token::Ctrl(')'), span(4, 5)),
+            (Token::CloseCtrl(')'), span(4, 5)),
             (Token::VirtualSemi, span(5, 6)), // Virtual semicolon after closing paren
             (Token::Ident("bar"), span(6, 9)),
         ]
@@ -288,7 +288,7 @@ fn test_virtual_semicolon_before_closing_brace() {
         [
             (Token::Ident("foo"), span(0, 3)),
             // No virtual semicolon because '}' prevents insertion
-            (Token::Ctrl('}'), span(4, 5)),
+            (Token::CloseCtrl('}'), span(4, 5)),
         ]
     );
 }

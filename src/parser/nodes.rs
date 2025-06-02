@@ -31,8 +31,11 @@ fn identifier_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Sp
         .map_with(|s, e| (AstExpr::ident(s), e.span()))
         .labelled("identifier");
 
+    let open = just(Token::OpenCtrl('('));
+    let close = just(Token::CloseCtrl(')'));
+
     let op = select! { Token::Op(op) => op }
-        .delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')')))
+        .delimited_by(open, close)
         .map_with(|s, e| (AstExpr::ident(s), e.span()))
         .labelled("operator");
 
@@ -71,8 +74,8 @@ pub fn statement<'src, I: TokenInput<'src>>(
 fn block<'src, I: TokenInput<'src>>(
     expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
 ) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
-    let open = just(Token::Ctrl('{'));
-    let close = just(Token::Ctrl('}'));
+    let open = just(Token::OpenCtrl('{'));
+    let close = just(Token::CloseCtrl('}'));
 
     statement(expr.clone())
         .repeated()
@@ -86,8 +89,8 @@ fn block<'src, I: TokenInput<'src>>(
 fn parens<'src, I: TokenInput<'src>>(
     expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
 ) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
-    let open = just(Token::Ctrl('('));
-    let close = just(Token::Ctrl(')'));
+    let open = just(Token::OpenCtrl('('));
+    let close = just(Token::CloseCtrl(')'));
 
     choice((
         open.clone()

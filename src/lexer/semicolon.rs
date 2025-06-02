@@ -8,9 +8,7 @@ fn can_end_statement(token: &Token) -> bool {
         Token::Num(_) |       // numbers  
         Token::True |         // boolean literals
         Token::False |
-        Token::Ctrl(')') |    // closing parentheses
-        Token::Ctrl('}') |    // closing braces
-        Token::Ctrl(']') // closing brackets
+        Token::CloseCtrl(_) // closing control characters
     )
 }
 
@@ -21,9 +19,7 @@ fn prevents_semicolon_insertion(token: &Token) -> bool {
         Token::Then |         // then keyword in if expressions
         Token::Else |         // else keyword in if expressions
         Token::Op(_) |        // operators (continuation of expression)
-        Token::Ctrl(')') |    // closing parentheses
-        Token::Ctrl('}') |    // closing braces
-        Token::Ctrl(']') |    // closing brackets
+        Token::CloseCtrl(_) | // closing control characters
         Token::Comma // commas (continuation of list/tuple)
     )
 }

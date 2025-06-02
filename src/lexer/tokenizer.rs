@@ -30,9 +30,13 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
         .map(|_| Token::Newline)
         .labelled("newline");
 
-    let ctrl = one_of("(){}[]")
-        .map(Token::Ctrl)
-        .labelled("control character");
+    let open_ctrl = one_of("({[")
+        .map(Token::OpenCtrl)
+        .labelled("open control character");
+
+    let close_ctrl = one_of(")]}")
+        .map(Token::CloseCtrl)
+        .labelled("close control character");
 
     let op = one_of("+*-/!=<|>&^")
         .repeated()
@@ -56,7 +60,9 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
     // Horizontal whitespace only (spaces and tabs, not newlines)
     let horizontal_whitespace = one_of(" \t").repeated();
 
-    let token = choice((num, semi, comma, newline, ctrl, op, keyword));
+    let token = choice((
+        num, semi, comma, newline, open_ctrl, close_ctrl, op, keyword,
+    ));
 
     token
         .map_with(|tok, e| (tok, e.span()))
