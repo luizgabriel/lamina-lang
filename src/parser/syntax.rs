@@ -135,8 +135,8 @@ impl AstExpr {
         AstExpr::Ident(name.into())
     }
 
-    pub fn tuple(items: Vec<Spanned<Self>>) -> Self {
-        AstExpr::Tuple(items)
+    pub fn tuple(items: impl IntoIterator<Item = Spanned<Self>>) -> Self {
+        AstExpr::Tuple(items.into_iter().collect())
     }
 
     pub fn fn_app(lhs: Spanned<Self>, rhs: Spanned<Self>) -> Self {
@@ -154,9 +154,12 @@ impl AstExpr {
         }
     }
 
-    pub fn block(statements: Vec<Spanned<AstStmt>>, expr: Option<Spanned<Self>>) -> Self {
+    pub fn block(
+        statements: impl IntoIterator<Item = Spanned<AstStmt>>,
+        expr: Option<Spanned<Self>>,
+    ) -> Self {
         AstExpr::Block {
-            statements,
+            statements: statements.into_iter().collect(),
             expr: expr.map(Box::new),
         }
     }

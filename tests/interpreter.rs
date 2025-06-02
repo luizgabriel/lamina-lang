@@ -6,7 +6,7 @@ use lamina_lang::{
 
 pub fn parse_and_evaluate(input: &str) -> Result<Value, InterpreterError> {
     let expr = parse_expr(input).expect("Failed to parse input");
-    eval(&expr.0, &Environment::builtins())
+    eval(expr.0, &Environment::builtins())
 }
 
 // Macro to simplify testing interpreter expressions

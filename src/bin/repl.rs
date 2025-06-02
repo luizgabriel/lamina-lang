@@ -3,7 +3,7 @@ use std::fmt::Display;
 use ariadne::Source;
 use lamina_lang::{
     interpreter::{Environment, InterpreterError, Value, eval, eval_stmt},
-    parser::{ParseError, parse_stmt},
+    parser::{AstStmt, ParseError, parse_stmt},
 };
 use rustyline::DefaultEditor;
 
@@ -69,16 +69,15 @@ fn prepare_repl_input(input: &str) -> String {
 fn eval_input<'src>(input: &'src str, env: &'_ Environment) -> Result<ValOrEnv, REPLError<'src>> {
     match parse_stmt(input) {
         Ok(stmt) => {
-            use lamina_lang::parser::AstStmt;
-            match &stmt.0 {
+            match stmt.0 {
                 AstStmt::Expr(expr) => {
                     // For expression statements, evaluate and return the value
-                    let value = eval(&expr.0, env)?;
+                    let value = eval(expr.0, env)?;
                     Ok(ValOrEnv::Val(value))
                 }
                 _ => {
                     // For let statements and function definitions, update the environment
-                    let env = eval_stmt(&stmt.0, env)?;
+                    let env = eval_stmt(stmt.0, env)?;
                     Ok(ValOrEnv::Env(env))
                 }
             }
