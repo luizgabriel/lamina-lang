@@ -3,7 +3,7 @@ use std::fmt::Display;
 use ariadne::Source;
 use lamina_lang::{
     interpreter::{Environment, InterpreterError, Value, eval, eval_stmt},
-    parser::{ParseError, parse_expr, parse_stmt},
+    parser::{ParseError, parse_stmt},
 };
 use rustyline::DefaultEditor;
 
@@ -56,19 +56,34 @@ enum ValOrEnv {
     Env(Environment),
 }
 
+fn prepare_repl_input(input: &str) -> String {
+    // For any input without explicit semicolons, add a newline to trigger virtual semicolon insertion
+    let input = input.trim();
+    if !input.ends_with(';') && !input.starts_with(':') {
+        format!("{}\n", input)
+    } else {
+        input.to_string()
+    }
+}
+
 fn eval_input<'src>(input: &'src str, env: &'_ Environment) -> Result<ValOrEnv, REPLError<'src>> {
-    match parse_expr(input) {
+    match parse_stmt(input) {
         Ok(stmt) => {
-            let value = eval(&stmt.0, env)?;
-            Ok(ValOrEnv::Val(value))
-        }
-        Err(_) => match parse_stmt(input) {
-            Ok(stmt) => {
-                let env = eval_stmt(&stmt.0, env)?;
-                Ok(ValOrEnv::Env(env))
+            use lamina_lang::parser::AstStmt;
+            match &stmt.0 {
+                AstStmt::Expr(expr) => {
+                    // For expression statements, evaluate and return the value
+                    let value = eval(&expr.0, env)?;
+                    Ok(ValOrEnv::Val(value))
+                }
+                _ => {
+                    // For let statements and function definitions, update the environment
+                    let env = eval_stmt(&stmt.0, env)?;
+                    Ok(ValOrEnv::Env(env))
+                }
             }
-            Err(err) => Err(err.into()),
-        },
+        }
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -113,6 +128,7 @@ fn main() -> anyhow::Result<()> {
             };
 
             line.push_str(&input);
+            rl.add_history_entry(line.trim())?;
 
             // Handle REPL commands
             if line.trim().starts_with(':') {
@@ -122,16 +138,15 @@ fn main() -> anyhow::Result<()> {
                 break;
             }
 
-            match eval_input(&line, &env) {
+            match eval_input(&prepare_repl_input(&line), &env) {
                 Ok(ValOrEnv::Val(value)) => {
-                    rl.add_history_entry(line.trim())?;
                     println!("{}", value);
                     line.clear();
                     break;
                 }
                 Ok(ValOrEnv::Env(new_env)) => {
-                    rl.add_history_entry(line.trim())?;
                     env = new_env;
+                    line.clear();
                     break;
                 }
                 Err(err) => match err {

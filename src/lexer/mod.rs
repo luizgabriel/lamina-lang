@@ -1,3 +1,4 @@
+mod semicolon;
 mod span;
 mod token;
 mod tokenizer;

@@ -141,21 +141,21 @@ fn binding_strength() {
 #[test]
 fn test_fn_def() {
     assert_stmt!(
-        "fn add x y = x + y;",
+        "add x y = x + y;",
         (
             AstStmt::fn_def(
-                ("add".into(), span(3, 6)),
-                vec![("x".into(), span(7, 8)), ("y".into(), span(9, 10))],
+                ("add".into(), span(0, 3)),
+                vec![("x".into(), span(4, 5)), ("y".into(), span(6, 7))],
                 (
                     AstExpr::op_app(
-                        ("+".into(), span(15, 16)),
-                        (AstExpr::ident("x"), span(13, 14)),
-                        (AstExpr::ident("y"), span(17, 18))
+                        ("+".into(), span(12, 13)),
+                        (AstExpr::ident("x"), span(10, 11)),
+                        (AstExpr::ident("y"), span(14, 15))
                     ),
-                    span(13, 18)
+                    span(10, 15)
                 )
             ),
-            span(0, 18)
+            span(0, 15)
         )
     );
 }
@@ -185,37 +185,37 @@ fn test_block() {
 
     assert_stmt!(
         r#"
-          fn add x y = {
+          add x y = {
             let sum = x + y;
             sum
           };
         "#,
         (
             AstStmt::fn_def(
-                ("add".into(), span(14, 17)),
-                vec![("x".into(), span(18, 19)), ("y".into(), span(20, 21))],
+                ("add".into(), span(11, 14)),
+                vec![("x".into(), span(15, 16)), ("y".into(), span(17, 18))],
                 (
                     AstExpr::block(
                         vec![(
                             AstStmt::let_def(
-                                ("sum".into(), span(42, 45)),
+                                ("sum".into(), span(39, 42)),
                                 (
                                     AstExpr::op_app(
-                                        ("+".into(), span(50, 51)),
-                                        (AstExpr::ident("x"), span(48, 49)),
-                                        (AstExpr::ident("y"), span(52, 53))
+                                        ("+".into(), span(47, 48)),
+                                        (AstExpr::ident("x"), span(45, 46)),
+                                        (AstExpr::ident("y"), span(49, 50))
                                     ),
-                                    span(48, 53)
+                                    span(45, 50)
                                 )
                             ),
-                            span(38, 53)
+                            span(35, 50)
                         )],
-                        Some((AstExpr::ident("sum"), span(67, 70)))
+                        Some((AstExpr::ident("sum"), span(64, 67)))
                     ),
-                    span(38, 70)
+                    span(35, 67)
                 )
             ),
-            span(11, 82)
+            span(11, 79)
         )
     );
 }

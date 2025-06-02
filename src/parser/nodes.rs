@@ -65,7 +65,7 @@ pub fn statement<'src, I: TokenInput<'src>>(
         fn_def(expr.clone()),
         expr.clone().map_with(|s, e| (AstStmt::expr(s), e.span())),
     ))
-    .then_ignore(just(Token::Semi))
+    .then_ignore(choice((just(Token::Semi), just(Token::VirtualSemi))))
 }
 
 fn block<'src, I: TokenInput<'src>>(
@@ -130,7 +130,7 @@ fn lambda<'src, I: TokenInput<'src>>(
     expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
 ) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     let param = ident().labelled("parameter");
-    let arrow = just(Token::Op("->")).labelled("->");
+    let arrow = just(Token::Op("->"));
 
     group((param, arrow, expr))
         .map_with(|(name, _, body), e| (AstExpr::lambda(name, body), e.span()))
@@ -181,15 +181,14 @@ fn fn_def<'src, I: TokenInput<'src>>(
         .at_least(1)
         .collect::<Vec<_>>();
 
-    just(Token::Fn)
-        .ignore_then(group((
-            ident().labelled("function name"),
-            args,
-            just(Token::Op("=")),
-            expr,
-        )))
-        .map_with(|(name, args, _, body), e| (AstStmt::fn_def(name, args, body), e.span()))
-        .labelled("function definition")
+    group((
+        ident().labelled("function name"),
+        args,
+        just(Token::Op("=")),
+        expr,
+    ))
+    .map_with(|(name, args, _, body), e| (AstStmt::fn_def(name, args, body), e.span()))
+    .labelled("function definition")
 }
 
 pub fn module<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstModule>> {

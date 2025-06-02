@@ -1,4 +1,4 @@
-use super::{Token, span::Spanned};
+use super::{Token, semicolon::insert_virtual_semicolons, span::Spanned};
 use chumsky::prelude::*;
 use trait_set::trait_set;
 
@@ -10,7 +10,6 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
     let keyword = text::ident()
         .map(|s| match s {
             "let" => Token::Let,
-            "fn" => Token::Fn,
             "true" => Token::True,
             "false" => Token::False,
             "if" => Token::If,
@@ -23,6 +22,13 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
     let semi = just(";").map(|_| Token::Semi).labelled("semicolon");
 
     let comma = just(",").map(|_| Token::Comma).labelled("comma");
+
+    // Newlines as tokens
+    let newline = just('\n')
+        .repeated()
+        .at_least(1)
+        .map(|_| Token::Newline)
+        .labelled("newline");
 
     let ctrl = one_of("(){}[]")
         .map(Token::Ctrl)
@@ -45,16 +51,19 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
 
     let comment = just("#")
         .then(any().and_is(just('\n').not()).repeated())
-        .padded()
         .labelled("comment");
 
-    let token = choice((num, semi, comma, ctrl, op, keyword));
+    // Horizontal whitespace only (spaces and tabs, not newlines)
+    let horizontal_whitespace = one_of(" \t").repeated();
+
+    let token = choice((num, semi, comma, newline, ctrl, op, keyword));
 
     token
         .map_with(|tok, e| (tok, e.span()))
         .padded_by(comment.repeated())
-        .padded()
+        .padded_by(horizontal_whitespace)
         .recover_with(skip_then_retry_until(any().ignored(), end()))
         .repeated()
         .collect()
+        .map(insert_virtual_semicolons)
 }

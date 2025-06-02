@@ -104,14 +104,14 @@ fn test_if_expressions() {
 fn test_recursive_functions() {
     // Simple recursive factorial function
     assert_eval!(
-        "{ fn fact n = if n == 0 then 1 else n * (fact (n - 1)); fact 5 }",
+        "{ fact n = if n == 0 then 1 else n * (fact (n - 1)); fact 5 }",
         "120"
     );
 
     // Recursive fibonacci function
     assert_eval!(
         "{
-            fn fib n =
+            fib n =
                 if n < 2
                     then n
                     else (fib (n - 1)) + (fib (n - 2));
@@ -122,7 +122,7 @@ fn test_recursive_functions() {
 
     // Recursive countdown function
     assert_eval!(
-        "{ fn countdown n = if n == 0 then 0 else countdown (n - 1); countdown 5 }",
+        "{ countdown n = if n == 0 then 0 else countdown (n - 1); countdown 5 }",
         "0"
     );
 }
@@ -130,7 +130,7 @@ fn test_recursive_functions() {
 #[test]
 fn test_function_scope_no_leak() {
     // Variable defined in function should not be accessible outside
-    let result = parse_and_evaluate("{ fn foo n = { let y = n + 1; y }; foo(1); y }");
+    let result = parse_and_evaluate("{ foo n = { let y = n + 1; y }; foo(1); y }");
     assert!(
         matches!(result, Err(InterpreterError::UnboundVariable(name)) if name == "y"),
         "Variable 'y' should not be accessible outside the function"
@@ -190,11 +190,11 @@ fn test_closure_capture() {
 #[test]
 fn test_higher_order_functions() {
     // Function that takes a function as argument
-    assert_eval!("{ fn apply f x = f x; apply (y -> y * 2) 5 }", "10");
+    assert_eval!("{ apply f x = f x; apply (y -> y * 2) 5 }", "10");
 
     // Function that returns a function
     assert_eval!(
-        "{ fn make_adder n = (x -> x + n); let add5 = make_adder 5; add5 3 }",
+        "{ make_adder n = (x -> x + n); let add5 = make_adder 5; add5 3 }",
         "8"
     );
 }
@@ -220,10 +220,10 @@ fn test_built_in_functions() {
 #[test]
 fn test_currying() {
     // Test that multi-argument functions are curried
-    assert_eval!("{ fn add x y = x + y; let add5 = add 5; add5 3 }", "8");
+    assert_eval!("{ add x y = x + y; let add5 = add 5; add5 3 }", "8");
 
     // Test three-argument function currying
-    assert_eval!("{ fn add3 x y z = x + y + z; add3 1 2 3 }", "6");
+    assert_eval!("{ add3 x y z = x + y + z; add3 1 2 3 }", "6");
 }
 
 #[test]
@@ -240,12 +240,131 @@ fn test_tail_recursion() {
     // Test tail recursive function (should not stack overflow)
     assert_eval!(
         "{
-            fn sum_tail n acc =
+            sum_tail n acc =
                 if n == 0
                     then acc
                     else sum_tail (n - 1) (acc + n);
             sum_tail 100 0
         }",
         "5050"
+    );
+}
+
+// Tests for virtual semicolons feature
+#[test]
+fn test_virtual_semicolons_basic() {
+    // Basic virtual semicolons - no explicit semicolons needed
+    assert_eval!(
+        "{
+            let x = 42
+            let y = x + 1
+            y * 2
+        }",
+        "86"
+    );
+}
+
+#[test]
+fn test_virtual_semicolons_mixed_with_explicit() {
+    // Mix of explicit and virtual semicolons
+    assert_eval!(
+        "{
+            let x = 10;
+            let y = 20
+            let z = x + y;
+            z * 2
+        }",
+        "60"
+    );
+}
+
+#[test]
+fn test_virtual_semicolons_multiline_expressions() {
+    // Multiline expressions should work without virtual semicolons interfering
+    assert_eval!(
+        "{
+            let result = if true
+                then 42
+                else 0
+            result + 8
+        }",
+        "50"
+    );
+}
+
+#[test]
+fn test_virtual_semicolons_function_definitions() {
+    // Function definitions with virtual semicolons
+    assert_eval!(
+        "{
+            add x y = x + y
+            multiply x y = x * y
+            let a = add 5 3
+            let b = multiply 2 4
+            a + b
+        }",
+        "16"
+    );
+}
+
+#[test]
+fn test_virtual_semicolons_nested_blocks() {
+    // Nested blocks with virtual semicolons
+    assert_eval!(
+        "{
+            let outer = 10
+            let inner_result = {
+                let inner = 5
+                let doubled = inner * 2
+                doubled + 1
+            }
+            outer + inner_result
+        }",
+        "21"
+    );
+}
+
+#[test]
+fn test_virtual_semicolons_complex_expressions() {
+    // Complex expressions spanning multiple lines
+    assert_eval!(
+        "{
+            let x = 5
+            let y = if x > 3
+                then x * 2
+                else x
+            let z = (y -> y + 1) y
+            z
+        }",
+        "11"
+    );
+}
+
+#[test]
+fn test_virtual_semicolons_tuple_operations() {
+    // Tuples with virtual semicolons
+    assert_eval!(
+        "{
+            let coords = (3, 4)
+            let x = 1
+            let y = 2
+            (x, y)
+        }",
+        "(1, 2)"
+    );
+}
+
+#[test]
+fn test_virtual_semicolons_with_operators() {
+    // Test that operators properly continue expressions across lines
+    assert_eval!(
+        "{
+            let a = 5
+            let result = a
+                + 10
+                * 2
+            result
+        }",
+        "30"
     );
 }
