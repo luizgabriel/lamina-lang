@@ -9,7 +9,6 @@ trait_set! {
 pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
     let keyword = text::ident()
         .map(|s| match s {
-            "let" => Token::Let,
             "true" => Token::True,
             "false" => Token::False,
             "if" => Token::If,

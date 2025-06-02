@@ -54,10 +54,9 @@ fn let_def<'src, I: TokenInput<'src>>(
     let var = ident().labelled("variable name");
     let eq = just(Token::Op("="));
 
-    just(Token::Let)
-        .ignore_then(group((var, eq, expr.clone())))
+    group((var, eq, expr.clone()))
         .map_with(|(name, _, body), e| (AstStmt::let_def(name, body), e.span()))
-        .labelled("let definition")
+        .labelled("variable definition")
 }
 
 pub fn statement<'src, I: TokenInput<'src>>(

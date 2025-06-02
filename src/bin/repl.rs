@@ -140,13 +140,9 @@ fn main() -> anyhow::Result<()> {
             match eval_input(&prepare_repl_input(&line), &env) {
                 Ok(ValOrEnv::Val(value)) => {
                     println!("{}", value);
-                    line.clear();
-                    break;
                 }
                 Ok(ValOrEnv::Env(new_env)) => {
                     env = new_env;
-                    line.clear();
-                    break;
                 }
                 Err(err) => match err {
                     REPLError::ParseError(err) => {
@@ -156,16 +152,15 @@ fn main() -> anyhow::Result<()> {
                         }
 
                         print_errors(err, &line)?;
-                        line.clear();
-                        break;
                     }
                     REPLError::EvalError(err) => {
                         eprintln!("{err}");
-                        line.clear();
-                        break;
                     }
                 },
             }
+
+            line.clear();
+            break;
         }
     }
 

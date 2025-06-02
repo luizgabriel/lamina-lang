@@ -36,6 +36,8 @@ fn test_binary_operations() {
     assert_eval!("4 * 6", "24");
     assert_eval!("10 - 3", "7");
     assert_eval!("15 / 3", "5");
+    // Division by zero
+    assert_err!(parse_and_evaluate("5 / 0"));
 }
 
 #[test]
@@ -54,13 +56,17 @@ fn test_boolean_operations() {
 
 #[test]
 fn test_partial_application() {
-    assert_eval!("{ let add1 = (+) 1; add1 2 }", "3");
+    assert_eval!("{ inc = (+) 1; inc 2 }", "3");
+    assert_eval!("{ dec x = (-) x 1; dec 2 }", "1");
+    assert_eval!("{ add = (+); add 2 3 }", "5");
+    assert_eval!("{ double = (*) 2; double 3 }", "6");
+    assert_eval!("{ half x = x / 2; half 4 }", "2");
 }
 
 #[test]
 fn test_let_statements_in_blocks() {
-    assert_eval!("{ let x = 42; x }", "42");
-    assert_eval!("{ let x = 5; x + 10 }", "15");
+    assert_eval!("{ x = 42; x }", "42");
+    assert_eval!("{ x = 5; x + 10 }", "15");
 }
 
 #[test]
@@ -68,8 +74,8 @@ fn test_complex_expressions() {
     // Nested function applications
     assert_eval!("(2 * 3) + (8 / 2)", "10");
 
-    // Nested let bindings in blocks
-    assert_eval!("{ let x = 5; let y = 10; x + y }", "15");
+    // Nested bindings in blocks
+    assert_eval!("{ x = 5; y = 10; x + y }", "15");
 }
 
 #[test]
@@ -96,8 +102,8 @@ fn test_if_expressions() {
     assert_eval!("if true then (if false then 1 else 2) else 3", "2");
 
     // If with variables in blocks
-    assert_eval!("{ let x = 5; if x > 3 then x + 1 else x - 1 }", "6");
-    assert_eval!("{ let x = 2; if x > 3 then x + 1 else x - 1 }", "1");
+    assert_eval!("{ x = 5; if x > 3 then x + 1 else x - 1 }", "6");
+    assert_eval!("{ x = 2; if x > 3 then x + 1 else x - 1 }", "1");
 }
 
 #[test]
@@ -130,7 +136,7 @@ fn test_recursive_functions() {
 #[test]
 fn test_function_scope_no_leak() {
     // Variable defined in function should not be accessible outside
-    let result = parse_and_evaluate("{ foo n = { let y = n + 1; y }; foo(1); y }");
+    let result = parse_and_evaluate("{ foo n = { y = n + 1; y }; foo(1); y }");
     assert!(
         matches!(result, Err(InterpreterError::UnboundVariable(name)) if name == "y"),
         "Variable 'y' should not be accessible outside the function"
@@ -140,7 +146,7 @@ fn test_function_scope_no_leak() {
 #[test]
 fn test_block_scope_no_leak() {
     // Variable defined in block should not be accessible outside
-    let result = parse_and_evaluate("{ { let x = 42; x }; x }");
+    let result = parse_and_evaluate("{ { x = 42; x }; x }");
     assert!(
         matches!(result, Err(InterpreterError::UnboundVariable(_))),
         "Variable 'x' should not be accessible outside the block"
@@ -150,7 +156,7 @@ fn test_block_scope_no_leak() {
 #[test]
 fn test_shadowing_no_leak() {
     // Shadowing should not leak inner value to outer scope
-    let result = parse_and_evaluate("{ let x = 1; { let x = 2; x }; x }");
+    let result = parse_and_evaluate("{ x = 1; { x = 2; x }; x }");
     assert_eq!(result.unwrap().to_string(), "1");
 }
 
@@ -168,23 +174,23 @@ fn test_lambda_expressions() {
 
 #[test]
 fn test_let_bindings() {
-    // Simple let binding
-    assert_eval!("{ let x = 42; x }", "42");
+    // Simple binding
+    assert_eval!("{ x = 42; x }", "42");
 
-    // Let binding with computation
-    assert_eval!("{ let x = 5 + 3; x * 2 }", "16");
+    // binding with computation
+    assert_eval!("{ x = 5 + 3; x * 2 }", "16");
 
-    // Nested let bindings
-    assert_eval!("{ let x = 5; let y = 10; x + y }", "15");
+    // Nested bindings
+    assert_eval!("{ x = 5; y = 10; x + y }", "15");
 }
 
 #[test]
 fn test_closure_capture() {
     // Test that closures capture their environment correctly
-    assert_eval!("{ let x = 10; (y -> x + y) 5 }", "15");
+    assert_eval!("{ x = 10; (y -> x + y) 5 }", "15");
 
     // Test nested closure capture
-    assert_eval!("{ let x = 5; let f = (y -> x + y); f 3 }", "8");
+    assert_eval!("{ x = 5; f = (y -> x + y); f 3 }", "8");
 }
 
 #[test]
@@ -194,7 +200,7 @@ fn test_higher_order_functions() {
 
     // Function that returns a function
     assert_eval!(
-        "{ make_adder n = (x -> x + n); let add5 = make_adder 5; add5 3 }",
+        "{ make_adder n = (x -> x + n); add5 = make_adder 5; add5 3 }",
         "8"
     );
 }
@@ -220,7 +226,7 @@ fn test_built_in_functions() {
 #[test]
 fn test_currying() {
     // Test that multi-argument functions are curried
-    assert_eval!("{ add x y = x + y; let add5 = add 5; add5 3 }", "8");
+    assert_eval!("{ add x y = x + y; add5 = add 5; add5 3 }", "8");
 
     // Test three-argument function currying
     assert_eval!("{ add3 x y z = x + y + z; add3 1 2 3 }", "6");
@@ -229,10 +235,10 @@ fn test_currying() {
 #[test]
 fn test_error_propagation() {
     // Test that errors are properly propagated through nested expressions
-    assert_err!(parse_and_evaluate("{ let f = (x -> x / 0); f 5 }"));
+    assert_err!(parse_and_evaluate("{ f = (x -> x / 0); f 5 }"));
 
     // Test type error propagation
-    assert_err!(parse_and_evaluate("{ let f = (x -> x + true); f 5 }"));
+    assert_err!(parse_and_evaluate("{ f = (x -> x + true); f 5 }"));
 }
 
 #[test]
@@ -256,8 +262,8 @@ fn test_virtual_semicolons_basic() {
     // Basic virtual semicolons - no explicit semicolons needed
     assert_eval!(
         "{
-            let x = 42
-            let y = x + 1
+            x = 42
+            y = x + 1
             y * 2
         }",
         "86"
@@ -269,9 +275,9 @@ fn test_virtual_semicolons_mixed_with_explicit() {
     // Mix of explicit and virtual semicolons
     assert_eval!(
         "{
-            let x = 10;
-            let y = 20
-            let z = x + y;
+            x = 10;
+            y = 20
+            z = x + y;
             z * 2
         }",
         "60"
@@ -283,7 +289,7 @@ fn test_virtual_semicolons_multiline_expressions() {
     // Multiline expressions should work without virtual semicolons interfering
     assert_eval!(
         "{
-            let result = if true
+            result = if true
                 then 42
                 else 0
             result + 8
@@ -299,8 +305,8 @@ fn test_virtual_semicolons_function_definitions() {
         "{
             add x y = x + y
             multiply x y = x * y
-            let a = add 5 3
-            let b = multiply 2 4
+            a = add 5 3
+            b = multiply 2 4
             a + b
         }",
         "16"
@@ -312,10 +318,10 @@ fn test_virtual_semicolons_nested_blocks() {
     // Nested blocks with virtual semicolons
     assert_eval!(
         "{
-            let outer = 10
-            let inner_result = {
-                let inner = 5
-                let doubled = inner * 2
+            outer = 10
+            inner_result = {
+                inner = 5
+                doubled = inner * 2
                 doubled + 1
             }
             outer + inner_result
@@ -329,11 +335,11 @@ fn test_virtual_semicolons_complex_expressions() {
     // Complex expressions spanning multiple lines
     assert_eval!(
         "{
-            let x = 5
-            let y = if x > 3
+            x = 5
+            y = if x > 3
                 then x * 2
                 else x
-            let z = (y -> y + 1) y
+            z = (y -> y + 1) y
             z
         }",
         "11"
@@ -345,9 +351,9 @@ fn test_virtual_semicolons_tuple_operations() {
     // Tuples with virtual semicolons
     assert_eval!(
         "{
-            let coords = (3, 4)
-            let x = 1
-            let y = 2
+            coords = (3, 4)
+            x = 1
+            y = 2
             (x, y)
         }",
         "(1, 2)"
@@ -359,8 +365,8 @@ fn test_virtual_semicolons_with_operators() {
     // Test that operators properly continue expressions across lines
     assert_eval!(
         "{
-            let a = 5
-            let result = a
+            a = 5
+            result = a
                 + 10
                 * 2
             result

@@ -186,7 +186,7 @@ fn test_block() {
     assert_stmt!(
         r#"
           add x y = {
-            let sum = x + y;
+            sum = x + y;
             sum
           };
         "#,
@@ -198,24 +198,24 @@ fn test_block() {
                     AstExpr::block(
                         vec![(
                             AstStmt::let_def(
-                                ("sum".into(), span(39, 42)),
+                                ("sum".into(), span(35, 38)),
                                 (
                                     AstExpr::op_app(
-                                        ("+".into(), span(47, 48)),
-                                        (AstExpr::ident("x"), span(45, 46)),
-                                        (AstExpr::ident("y"), span(49, 50))
+                                        ("+".into(), span(43, 44)),
+                                        (AstExpr::ident("x"), span(41, 42)),
+                                        (AstExpr::ident("y"), span(45, 46))
                                     ),
-                                    span(45, 50)
+                                    span(41, 46)
                                 )
                             ),
-                            span(35, 50)
+                            span(35, 46)
                         )],
-                        Some((AstExpr::ident("sum"), span(64, 67)))
+                        Some((AstExpr::ident("sum"), span(60, 63)))
                     ),
-                    span(35, 67)
+                    span(35, 63)
                 )
             ),
-            span(11, 79)
+            span(11, 75)
         )
     );
 }
@@ -282,32 +282,32 @@ fn test_lambda() {
     );
 
     assert_stmt!(
-        "let add = x -> y -> x + y;",
+        "add = x -> y -> x + y;",
         (
             AstStmt::let_def(
-                ("add".into(), span(4, 7)),
+                ("add".into(), span(0, 3)),
                 (
                     AstExpr::lambda(
-                        ("x".into(), span(10, 11)),
+                        ("x".into(), span(6, 7)),
                         (
                             AstExpr::lambda(
-                                ("y".into(), span(15, 16)),
+                                ("y".into(), span(11, 12)),
                                 (
                                     AstExpr::op_app(
-                                        ("+".into(), span(22, 23)),
-                                        (AstExpr::ident("x"), span(20, 21)),
-                                        (AstExpr::ident("y"), span(24, 25))
+                                        ("+".into(), span(18, 19)),
+                                        (AstExpr::ident("x"), span(16, 17)),
+                                        (AstExpr::ident("y"), span(20, 21))
                                     ),
-                                    span(20, 25)
+                                    span(16, 21)
                                 )
                             ),
-                            span(15, 25)
+                            span(11, 21)
                         )
                     ),
-                    span(10, 25)
+                    span(6, 21)
                 )
             ),
-            span(0, 25)
+            span(0, 21)
         )
     );
 }

@@ -11,14 +11,8 @@ pub enum InterpreterError {
     #[error("Division by zero")]
     DivisionByZero,
 
-    #[error("Stack overflow")]
-    StackOverflow,
-
     #[error("Invalid operation: {0} on {1}")]
     InvalidOperation(String, String),
-
-    #[error("Runtime error: {0}")]
-    RuntimeError(String),
 }
 
 impl InterpreterError {
@@ -30,15 +24,7 @@ impl InterpreterError {
         InterpreterError::TypeError(message.into())
     }
 
-    pub fn stack_overflow() -> Self {
-        InterpreterError::StackOverflow
-    }
-
     pub fn invalid_operation(op: impl Into<String>, operand: impl Into<String>) -> Self {
         InterpreterError::InvalidOperation(op.into(), operand.into())
-    }
-
-    pub fn runtime_error(message: impl Into<String>) -> Self {
-        InterpreterError::RuntimeError(message.into())
     }
 }

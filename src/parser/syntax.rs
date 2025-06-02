@@ -239,7 +239,7 @@ impl Display for AstStmt {
                     .join(", "),
                 body.0
             ),
-            AstStmt::Let { name, body } => write!(f, "let {} = {}", name.0, body.0),
+            AstStmt::Let { name, body } => write!(f, "{} = {}", name.0, body.0),
             AstStmt::Expr(expr) => write!(f, "{}", expr.0),
         }
     }

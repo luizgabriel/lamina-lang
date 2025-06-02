@@ -20,7 +20,7 @@ fn test_keywords() {
     assert_lex!(
         src,
         [
-            (Token::Let, span(0, 3)),
+            (Token::Ident("let"), span(0, 3)),
             (Token::If, span(4, 6)),
             (Token::True, span(7, 11)),
             (Token::False, span(12, 17)),
@@ -299,7 +299,7 @@ fn test_virtual_semicolon_complex_scenario() {
     assert_lex!(
         src,
         [
-            (Token::Let, span(0, 3)),
+            (Token::Ident("let"), span(0, 3)),
             (Token::Ident("x"), span(4, 5)),
             (Token::Op("="), span(6, 7)),
             (Token::Num(42.0), span(8, 10)),
