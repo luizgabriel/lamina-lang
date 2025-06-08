@@ -1,6 +1,6 @@
 use k9::assert_err;
 use lamina_lang::{
-    interpreter::{Environment, InterpreterError, Value, eval},
+    interpreter::{eval, Environment, InterpreterError, Value},
     parser::parse_expr,
 };
 

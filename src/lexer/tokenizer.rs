@@ -1,4 +1,4 @@
-use super::{Token, semicolon::insert_virtual_semicolons, span::Spanned};
+use super::{semicolon::insert_virtual_semicolons, span::Spanned, Token};
 use chumsky::prelude::*;
 use trait_set::trait_set;
 

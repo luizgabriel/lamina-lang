@@ -5,13 +5,13 @@ mod r#type;
 
 pub use error::*;
 pub use nodes::*;
-pub use syntax::*;
 pub use r#type::*;
+pub use syntax::*;
 
 use chumsky::input::Stream;
 use chumsky::prelude::*;
 
-use crate::lexer::{Spanned, lexer};
+use crate::lexer::{lexer, Spanned};
 
 pub fn parse_stmt(input: &str) -> Result<Spanned<AstStmt>, ParseError<'_>> {
     let tokens = lexer().parse(input).into_result()?;

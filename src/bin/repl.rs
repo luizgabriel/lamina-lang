@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use ariadne::Source;
 use lamina_lang::{
-    interpreter::{Environment, InterpreterError, Value, eval, eval_stmt},
-    parser::{AstStmt, AstStmtNode, ParseError, parse_stmt},
+    interpreter::{eval, eval_stmt, Environment, InterpreterError, Value},
+    parser::{parse_stmt, AstStmt, AstStmtNode, ParseError},
 };
 use rustyline::DefaultEditor;
 

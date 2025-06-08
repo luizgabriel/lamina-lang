@@ -1,7 +1,18 @@
 [package]
 name = "lamina_lang"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Luiz Gabriel <luizgabriel@gmail.com>"]
+description = "A functional programming language with strong static typing"
+repository = "https://github.com/luizgabriel/lamina"
+license = "Apache-2.0"
+keywords = ["functional", "programming-language", "compiler", "interpreter"]
+categories = ["compilers", "command-line-utilities"]
+readme = "README.md"
+
+[[bin]]
+name = "repl"
+path = "src/bin/repl.rs"
 
 [dependencies]
 anyhow = "1.0.98"
@@ -14,4 +25,12 @@ thiserror = "2.0.12"
 trait-set = "0.3.0"
 
 [dev-dependencies]
-k9 = "*"
+k9 = "0.12"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+debug = true

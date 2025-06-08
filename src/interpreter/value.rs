@@ -59,7 +59,7 @@ impl Display for Value {
                 write!(f, ")")
             }
             Value::Closure { param, body, .. } => {
-                write!(f, "({} -> {})", param.0, body.0.to_string())
+                write!(f, "({} -> {})", param.0, body.0)
             }
             Value::BuiltInFn(name) => write!(f, "builtin ({})", name),
         }

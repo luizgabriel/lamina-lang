@@ -1,6 +1,6 @@
 use crate::{
     lexer::Spanned,
-    parser::{AstType, parse_type},
+    parser::{parse_type, AstType},
 };
 use im::HashMap;
 

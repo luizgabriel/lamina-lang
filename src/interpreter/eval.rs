@@ -38,7 +38,10 @@ pub fn eval_stmt(stmt: AstStmt, env: &Environment) -> Result<Environment, Interp
 
             env.borrow_mut().set(&name.0, closure);
 
-            Ok(env.borrow().clone())
+            let env_clone = env.borrow().clone();
+            drop(env);
+
+            Ok(env_clone)
         }
     }
 }
@@ -134,7 +137,7 @@ fn substitute_value(expr: AstExpr, var_name: &str, value: &Value) -> AstExpr {
     match expr.0 {
         AstExprNode::Ident(name) if name == var_name => value_to_expr(value),
         AstExprNode::Ident(name) => AstExpr::ident(name),
-        AstExprNode::Literal(lit) => AstExpr::literal(lit.clone()),
+        AstExprNode::Literal(lit) => AstExpr::literal(lit),
         AstExprNode::Tuple(items) => {
             let items = items
                 .into_iter()
@@ -228,7 +231,7 @@ fn substitute_value_in_stmt(stmt: AstStmt, var_name: &str, value: &Value) -> Ast
 /// Convert a value back to an expression (for substitution)
 fn value_to_expr(value: &Value) -> AstExpr {
     match value {
-        Value::Literal(lit) => AstExpr::literal(lit.clone()),
+        Value::Literal(lit) => AstExpr::literal(*lit),
         Value::Tuple(items) => AstExpr::tuple(
             items
                 .iter()
@@ -277,8 +280,8 @@ fn partial_eval(expr: AstExpr, env: &Environment) -> Result<AstExpr, Interpreter
             if let (AstExprNode::Literal(lhs_lit), AstExprNode::Literal(rhs_lit)) =
                 (&lhs_eval.0, &rhs_eval.0)
             {
-                let lhs_val = lhs_lit.clone().into();
-                let rhs_val = rhs_lit.clone().into();
+                let lhs_val = (*lhs_lit).into();
+                let rhs_val = (*rhs_lit).into();
 
                 return match execute_binary_op(&op.0, lhs_val, rhs_val) {
                     Ok(result) => Ok(value_to_expr(&result)),

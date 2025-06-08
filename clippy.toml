@@ -1,6 +1,1 @@
-# Clippy configuration file for the lamina-lang project
-# See: https://rust-lang.github.io/rust-clippy/master/index.html#configuration
-# Note: You cannot globally disable lints here, but you can configure options for certain lints.
-
-# Example: Set the cognitive complexity threshold for functions
-# cognitive_complexity_threshold = 30
+cognitive-complexity-threshold = 30

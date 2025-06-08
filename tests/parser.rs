@@ -1,8 +1,8 @@
 use chumsky::input::Stream;
 use chumsky::prelude::*;
 use lamina_lang::{
-    lexer::{Span, lexer},
-    parser::{AstExpr, AstStmt, AstType, expression, statement, type_expr},
+    lexer::{lexer, Span},
+    parser::{expression, statement, type_expr, AstExpr, AstStmt, AstType},
 };
 
 #[macro_export]

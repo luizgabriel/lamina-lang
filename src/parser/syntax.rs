@@ -219,7 +219,7 @@ impl<T: Display, S: Display> Display for AstExprNode<T, S> {
                     .collect::<Vec<_>>()
                     .join("; "),
                 expr.as_ref()
-                    .map(|e| format!("; {}", e.0.to_string()))
+                    .map(|e| format!("; {}", e.0))
                     .unwrap_or_default(),
             ),
             AstExprNode::If {

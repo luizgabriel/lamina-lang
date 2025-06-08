@@ -1,6 +1,6 @@
 use lamina_lang::{
-    parser::{AstType, parse_expr, parse_type},
-    typecheck::{TyEnvironment, TypeError, infer},
+    parser::{parse_expr, parse_type, AstType},
+    typecheck::{infer, TyEnvironment, TypeError},
 };
 
 fn parse_and_infer(input: &str) -> Result<AstType, TypeError> {

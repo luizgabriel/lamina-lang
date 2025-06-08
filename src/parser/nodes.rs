@@ -1,7 +1,7 @@
 use crate::lexer::{Span, Spanned, Token};
 use crate::parser::{AstExpr, AstStmt, AstType, Literal};
 use chumsky::pratt::{infix, left, right};
-use chumsky::{Parser, prelude::*};
+use chumsky::{prelude::*, Parser};
 use trait_set::trait_set;
 
 trait_set! {

@@ -1,6 +1,7 @@
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq, Error)]
+/// Errors that can occur during interpretation
+#[derive(Debug, Error, Clone, PartialEq)]
 pub enum InterpreterError {
     #[error("Unbound variable: {0}")]
     UnboundVariable(String),
