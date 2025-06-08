@@ -16,7 +16,7 @@ pub fn infer(expr: &AstExpr, env: &TyEnvironment) -> Result<AstType, TypeError> 
                 .map(|(item, span)| infer(item, env).map(|ty| (ty, *span)))
                 .collect();
 
-            Ok(AstType::tuple(types?))
+            Ok(AstType::Tuple(types?))
         }
         _ => todo!(),
     }

@@ -2,10 +2,19 @@ use std::fmt::Display;
 
 use crate::{lexer::Spanned, parser::Literal};
 
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
+pub struct TypeVar(usize);
+
+impl Display for TypeVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TypeVar({})", self.0)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum AstType {
     Unit,
-    Var(usize),
+    Var(TypeVar),
     Num,
     Bool,
     Tuple(Vec<Spanned<AstType>>),
@@ -32,7 +41,7 @@ impl Eq for AstType {}
 
 impl AstType {
     pub fn var(n: usize) -> Self {
-        AstType::Var(n)
+        AstType::Var(TypeVar(n))
     }
 
     pub fn num() -> Self {

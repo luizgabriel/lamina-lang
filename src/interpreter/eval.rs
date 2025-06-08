@@ -56,10 +56,10 @@ pub fn eval(expr: AstExpr, env: &Environment) -> Result<Value, InterpreterError>
         AstExprNode::Literal(literal) => Ok(literal.into()),
 
         AstExprNode::Tuple(items) => {
-            let values: Result<Vec<_>, _> =
+            let values: Result<im::Vector<_>, _> =
                 items.into_iter().map(|item| eval(item.0, env)).collect();
 
-            Ok(Value::tuple(values?))
+            Ok(Value::Tuple(values?))
         }
 
         AstExprNode::Lambda { param, body } => Ok(Value::Closure {

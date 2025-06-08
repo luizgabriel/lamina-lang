@@ -49,14 +49,15 @@ impl Display for Value {
         match self {
             Value::Literal(lit) => write!(f, "{}", lit),
             Value::Tuple(items) => {
-                write!(f, "(")?;
-                for (i, item) in items.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", item)?;
-                }
-                write!(f, ")")
+                write!(
+                    f,
+                    "({})",
+                    items
+                        .iter()
+                        .map(|item| item.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
             Value::Closure { param, body, .. } => {
                 write!(f, "({} -> {})", param.0, body.0)

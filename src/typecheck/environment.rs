@@ -4,16 +4,14 @@ use crate::{
 };
 use im::HashMap;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct TyEnvironment {
     bindings: HashMap<String, Spanned<AstType>>,
 }
 
 impl TyEnvironment {
     pub fn empty() -> Self {
-        Self {
-            bindings: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn builtins() -> Self {
