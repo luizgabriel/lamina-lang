@@ -22,6 +22,8 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
 
     let comma = just(",").map(|_| Token::Comma).labelled("comma");
 
+    let colon = just(":").map(|_| Token::Colon).labelled("colon");
+
     // Newlines as tokens
     let newline = just('\n')
         .repeated()
@@ -60,7 +62,7 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
     let horizontal_whitespace = one_of(" \t").repeated();
 
     let token = choice((
-        num, semi, comma, newline, open_ctrl, close_ctrl, op, keyword,
+        num, semi, comma, colon, newline, open_ctrl, close_ctrl, op, keyword,
     ));
 
     token

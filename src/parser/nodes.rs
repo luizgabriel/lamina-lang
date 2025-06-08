@@ -1,6 +1,6 @@
 use crate::lexer::{Span, Spanned, Token};
-use crate::parser::{AstExpr, AstLiteral, AstModule, AstStmt};
-use chumsky::pratt::{infix, left};
+use crate::parser::{AstExpr, AstStmt, AstType, Literal};
+use chumsky::pratt::{infix, left, right};
 use chumsky::{Parser, prelude::*};
 use trait_set::trait_set;
 
@@ -9,7 +9,7 @@ trait_set! {
     pub trait SyntaxParser<'src, I: TokenInput<'src>, O> = chumsky::Parser<'src, I, O, extra::Err<Rich<'src, Token<'src>, Span>>> + Clone;
 }
 
-fn literal<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, AstLiteral> {
+fn literal<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Literal> {
     select! {
         Token::Num(n) => n.into(),
         Token::True => true.into(),
@@ -91,22 +91,25 @@ fn parens<'src, I: TokenInput<'src>>(
     let open = just(Token::OpenCtrl('('));
     let close = just(Token::CloseCtrl(')'));
 
-    choice((
-        open.clone()
-            .then(close.clone())
-            .labelled("empty tuple")
-            .map_with(|_, e| (AstExpr::literal(()), e.span())),
-        expr.clone()
-            .separated_by(just(Token::Comma))
-            .at_least(2)
-            .allow_trailing()
-            .collect::<Vec<_>>()
-            .delimited_by(open.clone(), close.clone())
-            .map_with(|s, e| (AstExpr::tuple(s), e.span()))
-            .labelled("tuple"),
-        expr.delimited_by(open.clone(), close.clone())
-            .labelled("parenthesized expression"),
-    ))
+    let unit_expr = open
+        .clone()
+        .then(close.clone())
+        .labelled("unit")
+        .map_with(|_, e| (AstExpr::literal(()), e.span()));
+
+    let parens = expr.clone().delimited_by(open.clone(), close.clone());
+
+    let tuple_expr = expr
+        .clone()
+        .separated_by(just(Token::Comma))
+        .at_least(2)
+        .allow_trailing()
+        .collect::<Vec<_>>()
+        .delimited_by(open, close)
+        .map_with(|s, e| (AstExpr::tuple(s), e.span()))
+        .labelled("tuple");
+
+    choice((unit_expr, tuple_expr, parens))
 }
 
 fn if_expr<'src, I: TokenInput<'src>>(
@@ -193,11 +196,51 @@ fn fn_def<'src, I: TokenInput<'src>>(
     .labelled("function definition")
 }
 
-pub fn module<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstModule>> {
-    let item = statement(expression());
+pub fn parens_type<'src, I: TokenInput<'src>>(
+    type_expr: impl SyntaxParser<'src, I, Spanned<AstType>>,
+) -> impl SyntaxParser<'src, I, Spanned<AstType>> {
+    let open = just(Token::OpenCtrl('('));
+    let close = just(Token::CloseCtrl(')'));
 
-    item.repeated()
+    let unit_expr = open
+        .clone()
+        .then(close.clone())
+        .labelled("unit type")
+        .map_with(|_, e| (AstType::Unit, e.span()));
+
+    let parens = type_expr.clone().delimited_by(open.clone(), close.clone());
+
+    let tuple_type_expr = type_expr
+        .separated_by(just(Token::Comma))
+        .at_least(2)
+        .allow_trailing()
         .collect::<Vec<_>>()
-        .map_with(|items, e| (AstModule::new(items), e.span()))
-        .labelled("module")
+        .delimited_by(open, close)
+        .map_with(|types, e| (AstType::Tuple(types), e.span()))
+        .labelled("tuple type");
+
+    choice((unit_expr, tuple_type_expr, parens))
+}
+
+pub fn type_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstType>> {
+    recursive(|type_expr| {
+        let primitive = select! {
+            Token::Ident(ident) if ident == "num" => AstType::Num,
+            Token::Ident(ident) if ident == "bool" => AstType::Bool,
+            Token::Ident(ident) if ident == "unit" => AstType::Unit,
+        }
+        .map_with(|t, e| (t, e.span()))
+        .labelled("primitive type");
+
+        let tuple = parens_type(type_expr.clone());
+
+        let atom = choice((primitive, tuple));
+
+        atom.pratt((
+            // function type
+            infix(right(1), just(Token::Op("->")), |lhs, _, rhs, e| {
+                (AstType::func(lhs, rhs), e.span())
+            }),
+        ))
+    })
 }

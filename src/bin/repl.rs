@@ -3,7 +3,7 @@ use std::fmt::Display;
 use ariadne::Source;
 use lamina_lang::{
     interpreter::{Environment, InterpreterError, Value, eval, eval_stmt},
-    parser::{AstStmt, ParseError, parse_stmt},
+    parser::{AstStmt, AstStmtNode, ParseError, parse_stmt},
 };
 use rustyline::DefaultEditor;
 
@@ -30,7 +30,7 @@ enum REPLError<'src> {
     EvalError(InterpreterError),
 }
 
-impl<'src> Display for REPLError<'src> {
+impl Display for REPLError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             REPLError::ParseError(err) => write!(f, "Parse error: {err}"),
@@ -45,7 +45,7 @@ impl<'src> From<ParseError<'src>> for REPLError<'src> {
     }
 }
 
-impl<'src> From<InterpreterError> for REPLError<'src> {
+impl From<InterpreterError> for REPLError<'_> {
     fn from(err: InterpreterError) -> Self {
         REPLError::EvalError(err)
     }
@@ -68,19 +68,15 @@ fn prepare_repl_input(input: &str) -> String {
 
 fn eval_input<'src>(input: &'src str, env: &'_ Environment) -> Result<ValOrEnv, REPLError<'src>> {
     match parse_stmt(input) {
-        Ok(stmt) => {
-            match stmt.0 {
-                AstStmt::Expr(expr) => {
-                    // For expression statements, evaluate and return the value
-                    let value = eval(expr.0, env)?;
-                    Ok(ValOrEnv::Val(value))
-                }
-                _ => {
-                    // For let statements and function definitions, update the environment
-                    let env = eval_stmt(stmt.0, env)?;
-                    Ok(ValOrEnv::Env(env))
-                }
-            }
+        // For expression statements, evaluate and return the value
+        Ok((AstStmt(AstStmtNode::Expr(expr)), _)) => {
+            let value = eval(expr.0, env)?;
+            Ok(ValOrEnv::Val(value))
+        }
+        Ok((stmt, _)) => {
+            // For let statements and function definitions, update the environment
+            let env = eval_stmt(stmt, env)?;
+            Ok(ValOrEnv::Env(env))
         }
         Err(err) => Err(err.into()),
     }

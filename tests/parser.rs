@@ -2,7 +2,7 @@ use chumsky::input::Stream;
 use chumsky::prelude::*;
 use lamina_lang::{
     lexer::{Span, lexer},
-    parser::{AstExpr, AstStmt, expression, statement},
+    parser::{AstExpr, AstStmt, AstType, expression, statement, type_expr},
 };
 
 #[macro_export]
@@ -34,6 +34,22 @@ macro_rules! assert_stmt {
             .parse(tokens)
             .into_result()
             .expect("Failed to parse statement");
+        assert_eq!(ast, $expected);
+    };
+}
+
+macro_rules! assert_type_expr {
+    ($src:expr, $expected:expr) => {
+        let input = $src;
+        let tokens = lexer()
+            .parse($src)
+            .into_result()
+            .expect("Failed to lex input");
+        let tokens = Stream::from_iter(tokens).map((0..input.len()).into(), |(t, s)| (t, s));
+        let ast = type_expr()
+            .parse(tokens)
+            .into_result()
+            .expect("Failed to parse type expression");
         assert_eq!(ast, $expected);
     };
 }
@@ -308,6 +324,65 @@ fn test_lambda() {
                 )
             ),
             span(0, 21)
+        )
+    );
+}
+
+#[test]
+fn test_type_expr() {
+    assert_type_expr!("num", (AstType::Num, span(0, 3)));
+    assert_type_expr!("bool", (AstType::Bool, span(0, 4)));
+    assert_type_expr!(
+        "(num, bool)",
+        (
+            AstType::Tuple(vec![
+                (AstType::Num, span(1, 4)),
+                (AstType::Bool, span(6, 10))
+            ]),
+            span(0, 11)
+        )
+    );
+    assert_type_expr!(
+        "num -> bool",
+        (
+            AstType::Fn(
+                Box::new((AstType::Num, span(0, 3))),
+                Box::new((AstType::Bool, span(7, 11)))
+            ),
+            span(0, 11)
+        )
+    );
+    assert_type_expr!(
+        "(num, bool) -> num",
+        (
+            AstType::Fn(
+                Box::new((
+                    AstType::Tuple(vec![
+                        (AstType::Num, span(1, 4)),
+                        (AstType::Bool, span(6, 10))
+                    ]),
+                    span(0, 11)
+                )),
+                Box::new((AstType::Num, span(15, 18)))
+            ),
+            span(0, 18)
+        )
+    );
+
+    assert_type_expr!(
+        "num -> bool -> num",
+        (
+            AstType::Fn(
+                Box::new((AstType::Num, span(0, 3))),
+                Box::new((
+                    AstType::Fn(
+                        Box::new((AstType::Bool, span(7, 11))),
+                        Box::new((AstType::Num, span(15, 18)))
+                    ),
+                    span(7, 18)
+                ))
+            ),
+            span(0, 18)
         )
     );
 }

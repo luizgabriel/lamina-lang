@@ -16,26 +16,16 @@ impl Environment {
         let mut env = Environment::empty();
 
         // Add built-in functions as native functions
-        env.bindings
-            .insert("+".to_string(), Value::BuiltInFn("+".to_string()));
-        env.bindings
-            .insert("-".to_string(), Value::BuiltInFn("-".to_string()));
-        env.bindings
-            .insert("*".to_string(), Value::BuiltInFn("*".to_string()));
-        env.bindings
-            .insert("/".to_string(), Value::BuiltInFn("/".to_string()));
-        env.bindings
-            .insert("==".to_string(), Value::BuiltInFn("==".to_string()));
-        env.bindings
-            .insert("<".to_string(), Value::BuiltInFn("<".to_string()));
-        env.bindings
-            .insert(">".to_string(), Value::BuiltInFn(">".to_string()));
-        env.bindings
-            .insert("&&".to_string(), Value::BuiltInFn("&&".to_string()));
-        env.bindings
-            .insert("||".to_string(), Value::BuiltInFn("||".to_string()));
-        env.bindings
-            .insert("!".to_string(), Value::BuiltInFn("!".to_string()));
+        env.set("+", Value::BuiltInFn("+".to_string()));
+        env.set("-", Value::BuiltInFn("-".to_string()));
+        env.set("*", Value::BuiltInFn("*".to_string()));
+        env.set("/", Value::BuiltInFn("/".to_string()));
+        env.set("==", Value::BuiltInFn("==".to_string()));
+        env.set("<", Value::BuiltInFn("<".to_string()));
+        env.set(">", Value::BuiltInFn(">".to_string()));
+        env.set("&&", Value::BuiltInFn("&&".to_string()));
+        env.set("||", Value::BuiltInFn("||".to_string()));
+        env.set("!", Value::BuiltInFn("!".to_string()));
 
         env
     }
@@ -44,13 +34,13 @@ impl Environment {
         self.bindings.get(name)
     }
 
-    pub fn set(&mut self, name: String, value: Value) {
-        self.bindings.insert(name, value);
+    pub fn set(&mut self, name: impl Into<String>, value: Value) {
+        self.bindings.insert(name.into(), value);
     }
 
-    pub fn extend(&self, name: String, value: Value) -> Self {
+    pub fn extend(&self, name: impl Into<String>, value: Value) -> Self {
         let mut new_env = self.clone();
-        new_env.set(name, value);
+        new_env.set(name.into(), value);
         new_env
     }
 }

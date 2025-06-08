@@ -1,6 +1,6 @@
 use chumsky::Parser;
 use k9::snapshot;
-use lamina_lang::lexer::{Span, Token, lexer};
+use lamina_lang::lexer::{lexer, Span, Token};
 
 #[macro_export]
 macro_rules! assert_lex {
@@ -98,7 +98,7 @@ fn test_error_output() {
     let result = lexer().parse(src).into_result();
     snapshot!(
         result.unwrap_err().first().unwrap(),
-        r#"found ''@'' at 4..5 expected '' '', ''\t'', comment, number, semicolon, comma, newline, open control character, close control character, operator, or keyword/identifier"#
+        r#"found ''@'' at 4..5 expected '' '', ''\t'', comment, number, semicolon, comma, colon, newline, open control character, close control character, operator, or keyword/identifier"#
     );
 }
 
