@@ -1,11 +1,11 @@
-use std::fmt::Display;
-
 use ariadne::Source;
 use lamina_lang::{
-    interpreter::{eval, eval_stmt, Environment, InterpreterError, Value},
+    interpreter::{eval, eval_stmt, Environment},
     parser::{parse_stmt, AstStmt, AstStmtNode, ParseError},
+    typecheck::{infer as infer_type, TypeEnvironment, TypeVarContext},
 };
 use rustyline::DefaultEditor;
+use thiserror::Error;
 
 const HISTORY_PATH: &str = ".lamina_history";
 
@@ -20,44 +20,56 @@ fn print_help() {
     println!("  :help     - Show this help message");
     println!("  :env      - Show the current environment bindings");
     println!("  :clear    - Clear the interpreter state (environment)");
+    println!("  :ty <expr> - Print the type of the expression");
     println!("  :quit     - Exit the REPL");
     println!();
 }
 
-#[derive(Debug)]
-enum REPLError<'src> {
-    ParseError(ParseError<'src>),
-    EvalError(InterpreterError),
+#[derive(Debug, Error)]
+enum ParseCommandError {
+    #[error("Usage: :ty <expression>")]
+    InvalidTypeCommand,
+
+    #[error("Unknown command: {0}. Type :help for available commands.")]
+    UnknownCommand(String),
 }
 
-impl Display for REPLError<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            REPLError::ParseError(err) => write!(f, "Parse error: {err}"),
-            REPLError::EvalError(err) => write!(f, "Evaluation error: {err}"),
+enum ReplCommand<'src> {
+    Eval(&'src str),
+    PrintType(&'src str),
+    Help,
+    PrintEnv,
+    ClearEnv,
+    Quit,
+}
+
+fn parse_repl_input<'src>(command: &'src str) -> Result<ReplCommand<'src>, ParseCommandError> {
+    let trimmed = command.trim();
+
+    if let Some(expr) = trimmed.strip_prefix(":ty") {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return Err(ParseCommandError::InvalidTypeCommand);
         }
+
+        return Ok(ReplCommand::PrintType(expr));
     }
-}
 
-impl<'src> From<ParseError<'src>> for REPLError<'src> {
-    fn from(err: ParseError<'src>) -> Self {
-        REPLError::ParseError(err)
+    if trimmed.starts_with(':') {
+        return match trimmed {
+            ":help" | ":h" => Ok(ReplCommand::Help),
+            ":env" | ":e" => Ok(ReplCommand::PrintEnv),
+            ":clear" | ":c" => Ok(ReplCommand::ClearEnv),
+            ":quit" | ":q" => Ok(ReplCommand::Quit),
+            _ => Err(ParseCommandError::UnknownCommand(command.to_string())),
+        };
     }
+
+    Ok(ReplCommand::Eval(trimmed))
 }
 
-impl From<InterpreterError> for REPLError<'_> {
-    fn from(err: InterpreterError) -> Self {
-        REPLError::EvalError(err)
-    }
-}
-
-enum ValOrEnv {
-    Val(Value),
-    Env(Environment),
-}
-
-fn prepare_repl_input(input: &str) -> String {
-    // For any input without explicit semicolons, add a newline to trigger virtual semicolon insertion
+/// For any input without explicit semicolons, add a newline to trigger virtual semicolon insertion
+fn prepare_input(input: &str) -> String {
     let input = input.trim();
     if !input.ends_with(';') && !input.starts_with(':') {
         format!("{}\n", input)
@@ -66,82 +78,64 @@ fn prepare_repl_input(input: &str) -> String {
     }
 }
 
-fn eval_input<'src>(input: &'src str, env: &'_ Environment) -> Result<ValOrEnv, REPLError<'src>> {
-    match parse_stmt(input) {
-        // For expression statements, evaluate and return the value
-        Ok((AstStmt(AstStmtNode::Expr(expr)), _)) => {
-            let value = eval(expr.0, env)?;
-            Ok(ValOrEnv::Val(value))
-        }
-        Ok((stmt, _)) => {
-            // For let statements and function definitions, update the environment
-            let env = eval_stmt(stmt, env)?;
-            Ok(ValOrEnv::Env(env))
-        }
-        Err(err) => Err(err.into()),
+fn print_env(env: &Environment) {
+    println!("Environment bindings:");
+    for (name, value) in env.iter().filter(|(_, value)| !value.is_builtin()) {
+        println!("  {name} = {value}");
     }
 }
 
-fn handle_repl_command(command: &str, env: &mut Environment) -> bool {
-    match command.trim() {
-        ":help" | ":h" => {
-            print_help();
-            true
-        }
-        ":env" | ":e" => {
-            println!("Environment bindings:");
-            for (name, value) in env.iter().filter(|(_, value)| !value.is_builtin()) {
-                println!("  {name} = {value}");
-            }
-            true
-        }
-        ":clear" | ":c" => {
-            *env = Environment::builtins();
-            true
-        }
-        ":quit" | ":q" => false,
-        _ => {
-            println!("Unknown command: {command}. Type :help for available commands.");
-            true
-        }
+struct ReplState {
+    rl: DefaultEditor,
+    env: Environment,
+    type_ctx: TypeVarContext,
+    type_env: TypeEnvironment,
+}
+
+impl ReplState {
+    fn new() -> anyhow::Result<Self> {
+        let mut type_ctx = TypeVarContext::default();
+        let type_env = TypeEnvironment::builtins(&mut type_ctx);
+        Ok(ReplState {
+            rl: DefaultEditor::new()?,
+            env: Environment::builtins(),
+            type_ctx,
+            type_env,
+        })
     }
 }
 
 fn main() -> anyhow::Result<()> {
     println!("Lamina Lang - REPL (Interpreter Mode)");
     println!("Type :help for available commands.");
-    let mut rl = DefaultEditor::new()?;
-    let _ = rl.load_history(HISTORY_PATH);
-    let mut env = Environment::builtins();
+    let mut state = ReplState::new()?;
+    let _ = state.rl.load_history(HISTORY_PATH);
 
     'outer: loop {
         let mut line = String::new();
 
         loop {
-            let Ok(input) = rl.readline(if line.is_empty() { "> " } else { "... " }) else {
+            let Ok(input) = state
+                .rl
+                .readline(if line.is_empty() { "> " } else { "... " })
+            else {
                 break 'outer;
             };
 
             line.push_str(&input);
-            rl.add_history_entry(line.trim())?;
+            state.rl.add_history_entry(line.trim())?;
 
-            // Handle REPL commands
-            if line.trim().starts_with(':') {
-                if !handle_repl_command(&line, &mut env) {
-                    break 'outer;
-                }
-                break;
-            }
-
-            match eval_input(&prepare_repl_input(&line), &env) {
-                Ok(ValOrEnv::Val(value)) => {
-                    println!("{}", value);
-                }
-                Ok(ValOrEnv::Env(new_env)) => {
-                    env = new_env;
-                }
-                Err(err) => match err {
-                    REPLError::ParseError(err) => {
+            match parse_repl_input(&input) {
+                Ok(ReplCommand::Eval(expr)) => match parse_stmt(&prepare_input(expr)) {
+                    Ok((AstStmt(AstStmtNode::Expr(expr)), _)) => match eval(expr.0, &state.env) {
+                        Ok(value) => println!("{}", value),
+                        Err(err) => println!("Evaluation error: {err}"),
+                    },
+                    Ok((stmt, _)) => {
+                        let new_env = eval_stmt(stmt, &state.env)?;
+                        state.env = new_env;
+                    }
+                    Err(err) => {
                         if err.is_incomplete_input() {
                             line.push_str("\n\t");
                             continue;
@@ -149,10 +143,40 @@ fn main() -> anyhow::Result<()> {
 
                         print_errors(err, &line)?;
                     }
-                    REPLError::EvalError(err) => {
-                        eprintln!("{err}");
+                },
+                Ok(ReplCommand::PrintType(expr)) => match parse_stmt(&prepare_input(expr)) {
+                    Ok((AstStmt(AstStmtNode::Expr(expr)), _)) => {
+                        let (inferred_type, _) =
+                            infer_type(&expr.0, &state.type_env, &mut state.type_ctx)?;
+                        println!("{}", inferred_type);
+                    }
+                    Ok(_) => {
+                        eprintln!("Cannot infer type of statements");
+                    }
+                    Err(err) => {
+                        if err.is_incomplete_input() {
+                            line.push_str("\n\t");
+                            continue;
+                        }
+
+                        print_errors(err, &line)?;
                     }
                 },
+                Ok(ReplCommand::Help) => {
+                    print_help();
+                }
+                Ok(ReplCommand::PrintEnv) => {
+                    print_env(&state.env);
+                }
+                Ok(ReplCommand::ClearEnv) => {
+                    state.env = Environment::builtins();
+                }
+                Ok(ReplCommand::Quit) => {
+                    break 'outer;
+                }
+                Err(err) => {
+                    eprintln!("{err}");
+                }
             }
 
             line.clear();
@@ -160,6 +184,6 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    rl.save_history(HISTORY_PATH)?;
+    state.rl.save_history(HISTORY_PATH)?;
     Ok(())
 }
