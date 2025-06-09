@@ -1,13 +1,11 @@
 use ariadne::Source;
-use chumsky::Parser;
 use lamina_lang::{
     interpreter::{eval, eval_stmt, Environment},
-    lexer::{lexer, Spanned, Token},
+    lexer::lex_input,
     parser::{parse_stmt, AstStmt, AstStmtNode, ParseError},
-    typecheck::{infer as infer_type, TypeEnvironment, TypeVarContext},
+    repl::{parse_command, print_env, print_help, print_tokens, ReplCommand, ReplState},
+    typecheck::infer as infer_type,
 };
-use rustyline::DefaultEditor;
-use thiserror::Error;
 
 const HISTORY_PATH: &str = ".lamina_history";
 
@@ -17,89 +15,6 @@ fn print_errors<'src>(error: ParseError<'src>, input: &'src str) -> anyhow::Resu
     Ok(())
 }
 
-fn print_help() {
-    println!("Lamina Lang REPL Commands:");
-    println!("  :help     - Show this help message");
-    println!("  :env      - Show the current environment bindings");
-    println!("  :clear    - Clear the interpreter state (environment)");
-    println!("  :type <expr> - Print the type of the expression");
-    println!("  :parse <expr> - Print the type of the expression");
-    println!("  :quit     - Exit the REPL");
-    println!();
-}
-
-#[derive(Debug, Error)]
-enum ParseCommandError {
-    #[error("Usage: {0} <expression>")]
-    InvalidExpressionCommand(&'static str),
-
-    #[error("Unknown command: {0}. Type :help for available commands.")]
-    UnknownCommand(String),
-}
-
-enum ReplCommand<'src> {
-    Eval(&'src str),
-    PrintType(&'src str),
-    PrintParse(&'src str),
-    Tokenize(&'src str),
-    Help,
-    PrintEnv,
-    ClearEnv,
-    Quit,
-}
-
-fn parse_repl_input<'src>(command: &'src str) -> Result<ReplCommand<'src>, ParseCommandError> {
-    let trimmed = command.trim();
-
-    if let Some(expr) = trimmed
-        .strip_prefix(":tokenize")
-        .or_else(|| trimmed.strip_prefix(":tk"))
-    {
-        let expr = expr.trim();
-        if expr.is_empty() {
-            return Err(ParseCommandError::InvalidExpressionCommand(":tokenize"));
-        }
-
-        return Ok(ReplCommand::Tokenize(expr));
-    }
-
-    if let Some(expr) = trimmed
-        .strip_prefix(":parse")
-        .or_else(|| trimmed.strip_prefix(":p"))
-    {
-        let expr = expr.trim();
-        if expr.is_empty() {
-            return Err(ParseCommandError::InvalidExpressionCommand(":parse"));
-        }
-
-        return Ok(ReplCommand::PrintParse(expr));
-    }
-
-    if let Some(expr) = trimmed
-        .strip_prefix(":type")
-        .or_else(|| trimmed.strip_prefix(":ty"))
-    {
-        let expr = expr.trim();
-        if expr.is_empty() {
-            return Err(ParseCommandError::InvalidExpressionCommand(":type"));
-        }
-
-        return Ok(ReplCommand::PrintType(expr));
-    }
-
-    if trimmed.starts_with(':') {
-        return match trimmed {
-            ":help" | ":h" => Ok(ReplCommand::Help),
-            ":env" | ":e" => Ok(ReplCommand::PrintEnv),
-            ":clear" | ":c" => Ok(ReplCommand::ClearEnv),
-            ":quit" | ":q" => Ok(ReplCommand::Quit),
-            _ => Err(ParseCommandError::UnknownCommand(command.to_string())),
-        };
-    }
-
-    Ok(ReplCommand::Eval(trimmed))
-}
-
 /// For any input without explicit semicolons, add a newline to trigger virtual semicolon insertion
 fn prepare_input(input: &str) -> String {
     let input = input.trim();
@@ -107,44 +22,6 @@ fn prepare_input(input: &str) -> String {
         format!("{}\n", input)
     } else {
         input.to_string()
-    }
-}
-
-fn print_env(env: &Environment) {
-    println!("Environment bindings:");
-    for (name, value) in env.iter().filter(|(_, value)| !value.is_builtin()) {
-        println!("  {name} = {value}");
-    }
-}
-
-fn print_tokens(tokens: &[Spanned<Token>]) {
-    println!(
-        "{}",
-        tokens
-            .iter()
-            .map(|t| format!("{:?}", t.0))
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
-}
-
-struct ReplState {
-    rl: DefaultEditor,
-    env: Environment,
-    type_ctx: TypeVarContext,
-    type_env: TypeEnvironment,
-}
-
-impl ReplState {
-    fn new() -> anyhow::Result<Self> {
-        let mut type_ctx = TypeVarContext::default();
-        let type_env = TypeEnvironment::builtins(&mut type_ctx);
-        Ok(ReplState {
-            rl: DefaultEditor::new()?,
-            env: Environment::builtins(),
-            type_ctx,
-            type_env,
-        })
     }
 }
 
@@ -168,7 +45,7 @@ fn main() -> anyhow::Result<()> {
             line.push_str(&input);
             state.rl.add_history_entry(line.trim())?;
 
-            match parse_repl_input(&input) {
+            match parse_command(&input) {
                 Ok(ReplCommand::Eval(expr)) => match parse_stmt(&prepare_input(expr)) {
                     Ok((AstStmt(AstStmtNode::Expr(expr)), _)) => match eval(expr.0, &state.env) {
                         Ok(value) => println!("{}", value),
@@ -220,8 +97,7 @@ fn main() -> anyhow::Result<()> {
                 },
                 Ok(ReplCommand::Tokenize(expr)) => {
                     let input = prepare_input(expr);
-                    let result = lexer().parse(&input).into_result();
-                    match result {
+                    match lex_input(&input) {
                         Ok(tokens) => print_tokens(&tokens),
                         Err(err) => print_errors(err.into(), &input)?,
                     }
