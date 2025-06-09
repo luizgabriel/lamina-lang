@@ -72,7 +72,7 @@ fn test_operators() {
     assert_lex!(
         src,
         [
-            (Token::Op("="), span(0, 1)),
+            (Token::Equal, span(0, 1)),
             (Token::Op("+"), span(2, 3)),
             (Token::Op("*"), span(4, 5)),
         ]
@@ -301,7 +301,7 @@ fn test_virtual_semicolon_complex_scenario() {
         [
             (Token::Ident("let"), span(0, 3)),
             (Token::Ident("x"), span(4, 5)),
-            (Token::Op("="), span(6, 7)),
+            (Token::Equal, span(6, 7)),
             (Token::Num(42.0), span(8, 10)),
             (Token::VirtualSemi, span(10, 11)), // Virtual semicolon after 42
             (Token::If, span(11, 13)),
@@ -316,7 +316,7 @@ fn test_virtual_semicolon_complex_scenario() {
             (Token::Num(0.0), span(40, 41)),
             (Token::VirtualSemi, span(41, 42)), // Virtual semicolon after 0
             (Token::Ident("y"), span(42, 43)),
-            (Token::Op("="), span(44, 45)),
+            (Token::Equal, span(44, 45)),
             (Token::Ident("x"), span(46, 47)),
             (Token::Op("+"), span(48, 49)),
             (Token::Num(1.0), span(50, 51)),

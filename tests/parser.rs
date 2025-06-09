@@ -88,7 +88,7 @@ fn test_parse_tuple() {
     assert_expr!(
         "(1, 2, 3)",
         (
-            AstExpr::tuple(vec![
+            AstExpr::tuple([
                 (AstExpr::literal(1.0), span(1, 2)),
                 (AstExpr::literal(2.0), span(4, 5)),
                 (AstExpr::literal(3.0), span(7, 8))
@@ -161,7 +161,7 @@ fn test_fn_def() {
         (
             AstStmt::fn_def(
                 ("add".into(), span(0, 3)),
-                vec![("x".into(), span(4, 5)), ("y".into(), span(6, 7))],
+                [("x".into(), span(4, 5)), ("y".into(), span(6, 7))],
                 (
                     AstExpr::op_app(
                         ("+".into(), span(12, 13)),
@@ -178,12 +178,12 @@ fn test_fn_def() {
 
 #[test]
 fn test_block() {
-    assert_expr!("{}", (AstExpr::block(vec![], None), span(1, 1)));
+    assert_expr!("{}", (AstExpr::block([], None), span(1, 1)));
     assert_expr!(
         "{ 1; 2; 3 }",
         (
             AstExpr::block(
-                vec![
+                [
                     (
                         AstStmt::expr((AstExpr::literal(1.0), span(2, 3))),
                         span(2, 3)
@@ -209,10 +209,10 @@ fn test_block() {
         (
             AstStmt::fn_def(
                 ("add".into(), span(11, 14)),
-                vec![("x".into(), span(15, 16)), ("y".into(), span(17, 18))],
+                [("x".into(), span(15, 16)), ("y".into(), span(17, 18))],
                 (
                     AstExpr::block(
-                        vec![(
+                        [(
                             AstStmt::assign(
                                 ("sum".into(), span(35, 38)),
                                 (
@@ -232,6 +232,113 @@ fn test_block() {
                 )
             ),
             span(11, 75)
+        )
+    );
+
+    assert_stmt!(
+        r#"id = x -> x;"#,
+        (
+            AstStmt::assign(
+                ("id".into(), span(0, 2)),
+                (
+                    AstExpr::lambda(
+                        ("x".into(), span(5, 6)),
+                        (AstExpr::ident("x"), span(10, 11))
+                    ),
+                    span(5, 11)
+                )
+            ),
+            span(0, 11)
+        )
+    );
+
+    assert_expr!(
+        r#"{
+            id x = x
+            id_lambda = x -> x
+            id_lambda 42
+        }"#,
+        (
+            AstExpr::block(
+                [
+                    (
+                        AstStmt::fn_def(
+                            ("id".into(), span(14, 16)),
+                            [("x".into(), span(17, 18))],
+                            (AstExpr::ident("x"), span(21, 22))
+                        ),
+                        span(14, 22)
+                    ),
+                    (
+                        AstStmt::assign(
+                            ("id_lambda".into(), span(35, 44)),
+                            (
+                                AstExpr::lambda(
+                                    ("x".into(), span(47, 48)),
+                                    (AstExpr::ident("x"), span(52, 53))
+                                ),
+                                span(47, 53)
+                            )
+                        ),
+                        span(35, 53)
+                    ),
+                ],
+                Some((
+                    AstExpr::fn_app(
+                        (AstExpr::ident("id_lambda"), span(66, 75)),
+                        (AstExpr::literal(42.0), span(76, 78))
+                    ),
+                    span(66, 78)
+                ))
+            ),
+            span(14, 78)
+        )
+    );
+
+    assert_expr!(
+        r#"{
+            id x = x
+            id_lambda = x -> x
+            id_lambda 42;
+        }"#,
+        (
+            AstExpr::block(
+                [
+                    (
+                        AstStmt::fn_def(
+                            ("id".into(), span(14, 16)),
+                            [("x".into(), span(17, 18))],
+                            (AstExpr::ident("x"), span(21, 22))
+                        ),
+                        span(14, 22)
+                    ),
+                    (
+                        AstStmt::assign(
+                            ("id_lambda".into(), span(35, 44)),
+                            (
+                                AstExpr::lambda(
+                                    ("x".into(), span(47, 48)),
+                                    (AstExpr::ident("x"), span(52, 53))
+                                ),
+                                span(47, 53)
+                            )
+                        ),
+                        span(35, 53)
+                    ),
+                    (
+                        AstStmt::expr((
+                            AstExpr::fn_app(
+                                (AstExpr::ident("id_lambda"), span(66, 75)),
+                                (AstExpr::literal(42.0), span(76, 78))
+                            ),
+                            span(66, 78)
+                        )),
+                        span(66, 78)
+                    )
+                ],
+                None
+            ),
+            span(14, 79)
         )
     );
 }

@@ -52,9 +52,9 @@ fn let_def<'src, I: TokenInput<'src>>(
     expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
 ) -> impl SyntaxParser<'src, I, Spanned<AstStmt>> {
     let var = ident().labelled("variable name");
-    let eq = just(Token::Op("="));
+    let eq = just(Token::Equal);
 
-    group((var, eq, expr.clone()))
+    group((var, eq, expr))
         .map_with(|(name, _, body), e| (AstStmt::assign(name, body), e.span()))
         .labelled("variable definition")
 }
@@ -62,12 +62,14 @@ fn let_def<'src, I: TokenInput<'src>>(
 pub fn statement<'src, I: TokenInput<'src>>(
     expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
 ) -> impl SyntaxParser<'src, I, Spanned<AstStmt>> {
+    let end_stmt = choice((just(Token::Semi), just(Token::VirtualSemi)));
+
     choice((
         let_def(expr.clone()),
         fn_def(expr.clone()),
-        expr.clone().map_with(|s, e| (AstStmt::expr(s), e.span())),
+        expr.map_with(|s, e| (AstStmt::expr(s), e.span())),
     ))
-    .then_ignore(choice((just(Token::Semi), just(Token::VirtualSemi))))
+    .then_ignore(end_stmt)
 }
 
 fn block<'src, I: TokenInput<'src>>(
@@ -100,7 +102,6 @@ fn parens<'src, I: TokenInput<'src>>(
     let parens = expr.clone().delimited_by(open.clone(), close.clone());
 
     let tuple_expr = expr
-        .clone()
         .separated_by(just(Token::Comma))
         .at_least(2)
         .allow_trailing()
@@ -135,7 +136,7 @@ fn lambda<'src, I: TokenInput<'src>>(
     expr: impl SyntaxParser<'src, I, Spanned<AstExpr>>,
 ) -> impl SyntaxParser<'src, I, Spanned<AstExpr>> {
     let param = ident().labelled("parameter");
-    let arrow = just(Token::Op("->"));
+    let arrow = just(Token::RightArrow);
 
     group((param, arrow, expr))
         .map_with(|(name, _, body), e| (AstExpr::lambda(name, body), e.span()))
@@ -153,7 +154,7 @@ pub fn expression<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spa
         // if <expr> then <expr> else <expr>
         let if_expr = if_expr(expr.clone());
 
-        let lambda_expr = lambda(expr.clone());
+        let lambda_expr = lambda(expr);
 
         let atom = choice((
             block,
@@ -189,7 +190,7 @@ fn fn_def<'src, I: TokenInput<'src>>(
     group((
         ident().labelled("function name"),
         args,
-        just(Token::Op("=")),
+        just(Token::Equal),
         expr,
     ))
     .map_with(|(name, args, _, body), e| (AstStmt::fn_def(name, args, body), e.span()))
@@ -236,7 +237,7 @@ pub fn type_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Span
 
         atom.pratt((
             // function type
-            infix(right(1), just(Token::Op("->")), |lhs, _, rhs, e| {
+            infix(right(1), just(Token::RightArrow), |lhs, _, rhs, e| {
                 (AstType::func(lhs, rhs), e.span())
             }),
         ))

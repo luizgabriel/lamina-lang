@@ -45,3 +45,42 @@ fn test_infer_fn_app() {
     assert_infer!("(x -> x) 42", Type::Num);
     assert_infer!("(x -> x) true", Type::Bool);
 }
+
+#[test]
+fn test_infer_if() {
+    assert_infer!("if true then 1 else 2", Type::Num);
+    assert_infer!("if true then true else false", Type::Bool);
+}
+
+#[test]
+fn test_infer_fn_def() {
+    assert_infer!(
+        r#"{
+            id x = x
+            id_lambda = x -> x
+            id_lambda
+        }"#,
+        Type::func(Type::var(3), Type::var(3))
+    );
+}
+
+#[test]
+fn test_infer_block() {
+    assert_infer!(
+        r#"{
+            id x = x
+            k = f -> if true then f 42 else f 43
+            k id
+        }"#,
+        Type::Num
+    );
+
+    assert_infer!(
+        r#"{
+            id x = x
+            k = f -> if true then f 42 else f 43
+            k id;
+        }"#,
+        Type::Unit
+    );
+}

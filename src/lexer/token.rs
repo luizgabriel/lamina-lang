@@ -9,6 +9,8 @@ pub enum Token<'src> {
     CloseCtrl(char),
     Semi,
     VirtualSemi,
+    Equal,
+    RightArrow,
     Comma,
     Colon,
     Newline,
@@ -25,6 +27,8 @@ impl Display for Token<'_> {
         match self {
             Token::Num(n) => write!(f, "{}", n),
             Token::Ident(s) => write!(f, "{}", s),
+            Token::Equal => write!(f, "="),
+            Token::RightArrow => write!(f, "->"),
             Token::Op(s) => write!(f, "{}", s),
             Token::OpenCtrl(c) => write!(f, "{}", c),
             Token::CloseCtrl(c) => write!(f, "{}", c),

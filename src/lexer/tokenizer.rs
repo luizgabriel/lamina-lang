@@ -43,7 +43,11 @@ pub fn lexer<'src>() -> impl Lexer<'src, Vec<Spanned<Token<'src>>>> {
         .repeated()
         .at_least(1)
         .to_slice()
-        .map(Token::Op)
+        .map(|op| match op {
+            "->" => Token::RightArrow,
+            "=" => Token::Equal,
+            other => Token::Op(other),
+        })
         .labelled("operator");
 
     let num = text::int(10)

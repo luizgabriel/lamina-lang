@@ -26,7 +26,7 @@ pub enum Type {
     Bool,
     Var(TypeVar),
     Fn(Box<Type>, Box<Type>),
-    Tuple(im::Vector<Type>),
+    Tuple(Vec<Type>),
 }
 
 impl Display for Type {

@@ -1,6 +1,8 @@
 use ariadne::Source;
+use chumsky::Parser;
 use lamina_lang::{
     interpreter::{eval, eval_stmt, Environment},
+    lexer::{lexer, Spanned, Token},
     parser::{parse_stmt, AstStmt, AstStmtNode, ParseError},
     typecheck::{infer as infer_type, TypeEnvironment, TypeVarContext},
 };
@@ -20,15 +22,16 @@ fn print_help() {
     println!("  :help     - Show this help message");
     println!("  :env      - Show the current environment bindings");
     println!("  :clear    - Clear the interpreter state (environment)");
-    println!("  :ty <expr> - Print the type of the expression");
+    println!("  :type <expr> - Print the type of the expression");
+    println!("  :parse <expr> - Print the type of the expression");
     println!("  :quit     - Exit the REPL");
     println!();
 }
 
 #[derive(Debug, Error)]
 enum ParseCommandError {
-    #[error("Usage: :ty <expression>")]
-    InvalidTypeCommand,
+    #[error("Usage: {0} <expression>")]
+    InvalidExpressionCommand(&'static str),
 
     #[error("Unknown command: {0}. Type :help for available commands.")]
     UnknownCommand(String),
@@ -37,6 +40,8 @@ enum ParseCommandError {
 enum ReplCommand<'src> {
     Eval(&'src str),
     PrintType(&'src str),
+    PrintParse(&'src str),
+    Tokenize(&'src str),
     Help,
     PrintEnv,
     ClearEnv,
@@ -46,10 +51,37 @@ enum ReplCommand<'src> {
 fn parse_repl_input<'src>(command: &'src str) -> Result<ReplCommand<'src>, ParseCommandError> {
     let trimmed = command.trim();
 
-    if let Some(expr) = trimmed.strip_prefix(":ty") {
+    if let Some(expr) = trimmed
+        .strip_prefix(":tokenize")
+        .or_else(|| trimmed.strip_prefix(":tk"))
+    {
         let expr = expr.trim();
         if expr.is_empty() {
-            return Err(ParseCommandError::InvalidTypeCommand);
+            return Err(ParseCommandError::InvalidExpressionCommand(":tokenize"));
+        }
+
+        return Ok(ReplCommand::Tokenize(expr));
+    }
+
+    if let Some(expr) = trimmed
+        .strip_prefix(":parse")
+        .or_else(|| trimmed.strip_prefix(":p"))
+    {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return Err(ParseCommandError::InvalidExpressionCommand(":parse"));
+        }
+
+        return Ok(ReplCommand::PrintParse(expr));
+    }
+
+    if let Some(expr) = trimmed
+        .strip_prefix(":type")
+        .or_else(|| trimmed.strip_prefix(":ty"))
+    {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return Err(ParseCommandError::InvalidExpressionCommand(":type"));
         }
 
         return Ok(ReplCommand::PrintType(expr));
@@ -83,6 +115,17 @@ fn print_env(env: &Environment) {
     for (name, value) in env.iter().filter(|(_, value)| !value.is_builtin()) {
         println!("  {name} = {value}");
     }
+}
+
+fn print_tokens(tokens: &[Spanned<Token>]) {
+    println!(
+        "{}",
+        tokens
+            .iter()
+            .map(|t| format!("{:?}", t.0))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
 }
 
 struct ReplState {
@@ -162,6 +205,27 @@ fn main() -> anyhow::Result<()> {
                         print_errors(err, &line)?;
                     }
                 },
+                Ok(ReplCommand::PrintParse(expr)) => match parse_stmt(&prepare_input(expr)) {
+                    Ok((stmt, _)) => {
+                        println!("{stmt:#?}");
+                    }
+                    Err(err) => {
+                        if err.is_incomplete_input() {
+                            line.push_str("\n\t");
+                            continue;
+                        }
+
+                        print_errors(err, &line)?;
+                    }
+                },
+                Ok(ReplCommand::Tokenize(expr)) => {
+                    let input = prepare_input(expr);
+                    let result = lexer().parse(&input).into_result();
+                    match result {
+                        Ok(tokens) => print_tokens(&tokens),
+                        Err(err) => print_errors(err.into(), &input)?,
+                    }
+                }
                 Ok(ReplCommand::Help) => {
                     print_help();
                 }

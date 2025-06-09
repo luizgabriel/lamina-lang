@@ -1,6 +1,5 @@
-use smallvec::SmallVec;
-
 use crate::lexer::Spanned;
+use smallvec::SmallVec;
 use std::fmt::Display;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -92,10 +91,10 @@ impl AstStmt {
 
 /// Generic AST expression node that can be parameterized over different recursion types
 #[derive(Clone, Debug, PartialEq)]
-pub enum AstExprNode<T: Clone, S: Clone> {
+pub enum AstExprNode<T, S> {
     Ident(String),
     Literal(Literal),
-    Tuple(im::Vector<Spanned<T>>),
+    Tuple(Vec<Spanned<T>>),
     Lambda {
         param: Spanned<String>,
         body: Box<Spanned<T>>,
@@ -110,7 +109,7 @@ pub enum AstExprNode<T: Clone, S: Clone> {
         rhs: Box<Spanned<T>>,
     },
     Block {
-        statements: im::Vector<Spanned<S>>,
+        statements: Vec<Spanned<S>>,
         expr: Option<Box<Spanned<T>>>,
     },
     If {
@@ -200,7 +199,7 @@ impl AstExpr {
     }
 }
 
-impl<T: Display + Clone, S: Display + Clone> Display for AstExprNode<T, S> {
+impl<T: Display, S: Display> Display for AstExprNode<T, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AstExprNode::Ident(name) => write!(f, "{}", name),

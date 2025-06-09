@@ -1,20 +1,20 @@
 use crate::{
     lexer::Spanned,
-    parser::{AstExpr, AstExprNode},
+    parser::{AstExpr, AstExprNode, AstStmt, AstStmtNode},
     typecheck::{unify, Subst, Type, TypeEnvironment, TypeError, TypeVarContext},
 };
 
 fn infer_tuple(
-    items: &im::Vector<Spanned<AstExpr>>,
+    items: &[Spanned<AstExpr>],
     env: &TypeEnvironment,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
-    let mut types = im::Vector::new();
+    let mut types = Vec::with_capacity(items.len());
     let mut subst = Subst::empty();
 
     for item in items {
         let (ty, s) = infer(&item.0, &env.clone().apply(&subst), ctx)?;
-        types.push_back(ty);
+        types.push(ty);
         subst = subst.compose(s);
     }
 
@@ -75,6 +75,58 @@ fn infer_if(
         s1.compose(s2).compose(s3).compose(s4).compose(s5),
     ))
 }
+
+fn infer_stmt(
+    stmt: &AstStmt,
+    env: &TypeEnvironment,
+    ctx: &mut TypeVarContext,
+) -> Result<(TypeEnvironment, Subst), TypeError> {
+    match &stmt.0 {
+        AstStmtNode::Assign { name, body } => {
+            let (ty, s) = infer(&body.0, &env.clone(), ctx)?;
+            let new_env = env.extend(name.0.clone(), ty);
+            Ok((new_env, s))
+        }
+        AstStmtNode::FnDef { name, params, body } => {
+            let lambda = params.iter().rev().fold(body.clone(), |acc, param| {
+                let span = param.1.start..acc.1.end;
+                (AstExpr::lambda(param.clone(), acc), span.into())
+            });
+
+            let (ty, s) = infer(&lambda.0, &env.clone(), ctx)?;
+            let new_env = env.extend(name.0.clone(), ty);
+            Ok((new_env, s))
+        }
+        AstStmtNode::Expr(expr) => {
+            let (_, s) = infer(&expr.0, &env.clone(), ctx)?;
+            Ok((env.clone(), s))
+        }
+    }
+}
+
+fn infer_block(
+    statements: &[Spanned<AstStmt>],
+    expr: Option<&Spanned<AstExpr>>,
+    env: &TypeEnvironment,
+    ctx: &mut TypeVarContext,
+) -> Result<(Type, Subst), TypeError> {
+    let mut env = env.clone();
+    let mut subst = Subst::empty();
+    for stmt in statements {
+        let (new_env, s) = infer_stmt(&stmt.0, &env.clone().apply(&subst), ctx)?;
+        env = new_env;
+        subst = subst.compose(s);
+    }
+
+    match expr {
+        Some(expr) => {
+            let (ty, s) = infer(&expr.0, &env.clone().apply(&subst), ctx)?;
+            Ok((ty, subst.compose(s)))
+        }
+        None => Ok((Type::Unit, subst)),
+    }
+}
+
 pub fn infer(
     expr: &AstExpr,
     env: &TypeEnvironment,
@@ -97,6 +149,10 @@ pub fn infer(
             else_branch,
         } => infer_if(condition, then_branch, else_branch, env, ctx),
 
-        _ => todo!(),
+        AstExprNode::Block { statements, expr } => {
+            infer_block(statements, expr.as_deref(), env, ctx)
+        }
+
+        expr => todo!("Infer not implemented for {:#?}", expr),
     }
 }
