@@ -90,7 +90,7 @@ fn handle_repl_command(command: &str, env: &mut Environment) -> bool {
         }
         ":env" | ":e" => {
             println!("Environment bindings:");
-            for (name, value) in env.into_iter().filter(|(_, value)| !value.is_builtin()) {
+            for (name, value) in env.iter().filter(|(_, value)| !value.is_builtin()) {
                 println!("  {name} = {value}");
             }
             true

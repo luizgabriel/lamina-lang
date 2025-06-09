@@ -10,7 +10,7 @@ pub fn eval_stmt(stmt: AstStmt, env: &Environment) -> Result<Environment, Interp
             let _ = eval(expr.0, env)?;
             Ok(env.clone())
         }
-        AstStmtNode::Let { name, body } => {
+        AstStmtNode::Assign { name, body } => {
             let value = eval(body.0, env)?;
             Ok(env.extend(&name.0, value))
         }
@@ -203,14 +203,14 @@ fn substitute_value_in_stmt(stmt: AstStmt, var_name: &str, value: &Value) -> Ast
             let expr = (substitute_value(expr.0, var_name, value), expr.1);
             AstStmt::expr(expr)
         }
-        AstStmtNode::Let { name, body } => {
+        AstStmtNode::Assign { name, body } => {
             // Don't substitute if the let binding shadows our variable
             if name.0 == var_name {
-                return AstStmt::let_def(name, body);
+                return AstStmt::assign(name, body);
             }
 
             let body = (substitute_value(body.0, var_name, value), body.1);
-            AstStmt::let_def(name, body)
+            AstStmt::assign(name, body)
         }
         AstStmtNode::FnDef {
             name,
@@ -253,9 +253,9 @@ fn partial_eval_stmt(stmt: AstStmt, env: &Environment) -> Result<AstStmt, Interp
             let eval_expr = partial_eval(expr.0, env)?;
             Ok(AstStmt::expr((eval_expr, expr.1)))
         }
-        AstStmtNode::Let { name, body } => {
+        AstStmtNode::Assign { name, body } => {
             let eval_body = partial_eval(body.0, env)?;
-            Ok(AstStmt::let_def(name, (eval_body, body.1)))
+            Ok(AstStmt::assign(name, (eval_body, body.1)))
         }
         AstStmtNode::FnDef {
             name,

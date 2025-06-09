@@ -55,7 +55,7 @@ fn let_def<'src, I: TokenInput<'src>>(
     let eq = just(Token::Op("="));
 
     group((var, eq, expr.clone()))
-        .map_with(|(name, _, body), e| (AstStmt::let_def(name, body), e.span()))
+        .map_with(|(name, _, body), e| (AstStmt::assign(name, body), e.span()))
         .labelled("variable definition")
 }
 
@@ -225,9 +225,7 @@ pub fn parens_type<'src, I: TokenInput<'src>>(
 pub fn type_expr<'src, I: TokenInput<'src>>() -> impl SyntaxParser<'src, I, Spanned<AstType>> {
     recursive(|type_expr| {
         let primitive = select! {
-            Token::Ident(ident) if ident == "num" => AstType::Num,
-            Token::Ident(ident) if ident == "bool" => AstType::Bool,
-            Token::Ident(ident) if ident == "unit" => AstType::Unit,
+            Token::Ident(ident) => AstType::cons(ident.to_string()),
         }
         .map_with(|t, e| (t, e.span()))
         .labelled("primitive type");

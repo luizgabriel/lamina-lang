@@ -57,7 +57,7 @@ pub enum AstStmtNode<T> {
         params: SmallVec<[Spanned<String>; 4]>,
         body: Spanned<T>,
     },
-    Let {
+    Assign {
         name: Spanned<String>,
         body: Spanned<T>,
     },
@@ -81,8 +81,8 @@ impl AstStmt {
         })
     }
 
-    pub fn let_def(name: Spanned<String>, body: Spanned<AstExpr>) -> Self {
-        AstStmt(AstStmtNode::Let { name, body })
+    pub fn assign(name: Spanned<String>, body: Spanned<AstExpr>) -> Self {
+        AstStmt(AstStmtNode::Assign { name, body })
     }
 
     pub fn expr(expr: Spanned<AstExpr>) -> Self {
@@ -259,7 +259,7 @@ impl<T: Display> Display for AstStmtNode<T> {
                     .join(", "),
                 body.0
             ),
-            AstStmtNode::Let { name, body } => write!(f, "{} = {}", name.0, body.0),
+            AstStmtNode::Assign { name, body } => write!(f, "{} = {}", name.0, body.0),
             AstStmtNode::Expr(expr) => write!(f, "{}", expr.0),
         }
     }

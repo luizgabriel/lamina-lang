@@ -1,15 +1,11 @@
 use super::Value;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Environment {
-    bindings: im::HashMap<String, Value>,
-}
+pub struct Environment(im::HashMap<String, Value>);
 
 impl Environment {
     pub fn empty() -> Self {
-        Self {
-            bindings: im::HashMap::new(),
-        }
+        Self(im::HashMap::new())
     }
 
     pub fn builtins() -> Self {
@@ -31,11 +27,11 @@ impl Environment {
     }
 
     pub fn get(&self, name: &str) -> Option<&Value> {
-        self.bindings.get(name)
+        self.0.get(name)
     }
 
     pub fn set(&mut self, name: impl Into<String>, value: Value) {
-        self.bindings.insert(name.into(), value);
+        self.0.insert(name.into(), value);
     }
 
     pub fn extend(&self, name: impl Into<String>, value: Value) -> Self {
@@ -43,13 +39,17 @@ impl Environment {
         new_env.set(name.into(), value);
         new_env
     }
+
+    pub fn iter(&self) -> im::hashmap::Iter<String, Value> {
+        self.0.iter()
+    }
 }
 
-impl<'a> IntoIterator for &'a Environment {
-    type Item = (&'a String, &'a Value);
-    type IntoIter = im::hashmap::Iter<'a, String, Value>;
+impl IntoIterator for Environment {
+    type Item = (String, Value);
+    type IntoIter = im::hashmap::ConsumingIter<(String, Value)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.bindings.iter()
+        self.0.into_iter()
     }
 }

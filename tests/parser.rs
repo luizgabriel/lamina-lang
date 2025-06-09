@@ -213,7 +213,7 @@ fn test_block() {
                 (
                     AstExpr::block(
                         vec![(
-                            AstStmt::let_def(
+                            AstStmt::assign(
                                 ("sum".into(), span(35, 38)),
                                 (
                                     AstExpr::op_app(
@@ -300,7 +300,7 @@ fn test_lambda() {
     assert_stmt!(
         "add = x -> y -> x + y;",
         (
-            AstStmt::let_def(
+            AstStmt::assign(
                 ("add".into(), span(0, 3)),
                 (
                     AstExpr::lambda(
@@ -330,57 +330,57 @@ fn test_lambda() {
 
 #[test]
 fn test_type_expr() {
-    assert_type_expr!("num", (AstType::Num, span(0, 3)));
-    assert_type_expr!("bool", (AstType::Bool, span(0, 4)));
+    assert_type_expr!("Num", (AstType::cons("Num"), span(0, 3)));
+    assert_type_expr!("Bool", (AstType::cons("Bool"), span(0, 4)));
     assert_type_expr!(
-        "(num, bool)",
+        "(Num, Bool)",
         (
-            AstType::Tuple(vec![
-                (AstType::Num, span(1, 4)),
-                (AstType::Bool, span(6, 10))
+            AstType::tuple([
+                (AstType::cons("Num"), span(1, 4)),
+                (AstType::cons("Bool"), span(6, 10))
             ]),
             span(0, 11)
         )
     );
     assert_type_expr!(
-        "num -> bool",
+        "Num -> Bool",
         (
-            AstType::Fn(
-                Box::new((AstType::Num, span(0, 3))),
-                Box::new((AstType::Bool, span(7, 11)))
+            AstType::func(
+                (AstType::cons("Num"), span(0, 3)),
+                (AstType::cons("Bool"), span(7, 11))
             ),
             span(0, 11)
         )
     );
     assert_type_expr!(
-        "(num, bool) -> num",
+        "(Num, Bool) -> Num",
         (
-            AstType::Fn(
-                Box::new((
-                    AstType::Tuple(vec![
-                        (AstType::Num, span(1, 4)),
-                        (AstType::Bool, span(6, 10))
+            AstType::func(
+                (
+                    AstType::tuple([
+                        (AstType::cons("Num"), span(1, 4)),
+                        (AstType::cons("Bool"), span(6, 10))
                     ]),
                     span(0, 11)
-                )),
-                Box::new((AstType::Num, span(15, 18)))
+                ),
+                (AstType::cons("Num"), span(15, 18))
             ),
             span(0, 18)
         )
     );
 
     assert_type_expr!(
-        "num -> bool -> num",
+        "Num -> Bool -> Num",
         (
-            AstType::Fn(
-                Box::new((AstType::Num, span(0, 3))),
-                Box::new((
-                    AstType::Fn(
-                        Box::new((AstType::Bool, span(7, 11))),
-                        Box::new((AstType::Num, span(15, 18)))
+            AstType::func(
+                (AstType::cons("Num"), span(0, 3)),
+                (
+                    AstType::func(
+                        (AstType::cons("Bool"), span(7, 11)),
+                        (AstType::cons("Num"), span(15, 18))
                     ),
                     span(7, 18)
-                ))
+                )
             ),
             span(0, 18)
         )

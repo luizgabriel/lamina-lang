@@ -1,5 +1,6 @@
 use crate::lexer::Spanned;
-use crate::parser::{AstExprNode, AstStmtNode, AstType, Literal};
+use crate::parser::{AstExprNode, AstStmtNode, Literal};
+use crate::typecheck::Type;
 
 /// Typed AST statement that contains both type information and the statement structure
 #[derive(Clone, Debug, PartialEq)]
@@ -18,8 +19,8 @@ impl TypedStmt {
         })
     }
 
-    pub fn let_def(name: Spanned<String>, body: Spanned<TypedAstExpr>) -> Self {
-        Self(AstStmtNode::Let { name, body })
+    pub fn assign(name: Spanned<String>, body: Spanned<TypedAstExpr>) -> Self {
+        Self(AstStmtNode::Assign { name, body })
     }
 
     pub fn expr(expr: Spanned<TypedAstExpr>) -> Self {
@@ -30,33 +31,33 @@ impl TypedStmt {
 /// Typed AST expression that contains both type information and the expression structure
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedAstExpr {
-    pub ty: AstType,
+    pub ty: Type,
     pub node: AstExprNode<TypedAstExpr, TypedStmt>,
 }
 
 impl TypedAstExpr {
     pub fn literal(literal: Literal) -> Self {
         Self {
-            ty: AstType::from(literal),
+            ty: (&literal).into(),
             node: AstExprNode::Literal(literal),
         }
     }
 
-    pub fn ident(name: impl Into<String>, ty: AstType) -> Self {
+    pub fn ident(name: impl Into<String>, ty: Type) -> Self {
         Self {
             ty,
             node: AstExprNode::Ident(name.into()),
         }
     }
 
-    pub fn tuple(items: impl IntoIterator<Item = Spanned<Self>>, ty: AstType) -> Self {
+    pub fn tuple(items: impl IntoIterator<Item = Spanned<Self>>, ty: Type) -> Self {
         Self {
             ty,
             node: AstExprNode::Tuple(items.into_iter().collect()),
         }
     }
 
-    pub fn fn_app(lhs: Spanned<Self>, rhs: Spanned<Self>, ty: AstType) -> Self {
+    pub fn fn_app(lhs: Spanned<Self>, rhs: Spanned<Self>, ty: Type) -> Self {
         Self {
             ty,
             node: AstExprNode::FnApp {
@@ -66,12 +67,7 @@ impl TypedAstExpr {
         }
     }
 
-    pub fn op_app(
-        op: Spanned<String>,
-        lhs: Spanned<Self>,
-        rhs: Spanned<Self>,
-        ty: AstType,
-    ) -> Self {
+    pub fn op_app(op: Spanned<String>, lhs: Spanned<Self>, rhs: Spanned<Self>, ty: Type) -> Self {
         Self {
             ty,
             node: AstExprNode::OpApp {
@@ -85,7 +81,7 @@ impl TypedAstExpr {
     pub fn block(
         statements: impl IntoIterator<Item = Spanned<TypedStmt>>,
         expr: Option<Spanned<Self>>,
-        ty: AstType,
+        ty: Type,
     ) -> Self {
         Self {
             ty,
@@ -100,7 +96,7 @@ impl TypedAstExpr {
         condition: Spanned<Self>,
         then_branch: Spanned<Self>,
         else_branch: Spanned<Self>,
-        ty: AstType,
+        ty: Type,
     ) -> Self {
         Self {
             ty,
@@ -112,7 +108,7 @@ impl TypedAstExpr {
         }
     }
 
-    pub fn lambda(arg: Spanned<String>, body: Spanned<Self>, ty: AstType) -> Self {
+    pub fn lambda(arg: Spanned<String>, body: Spanned<Self>, ty: Type) -> Self {
         Self {
             ty,
             node: AstExprNode::Lambda {

@@ -1,54 +1,70 @@
-use crate::{
-    lexer::Spanned,
-    parser::{parse_type, AstType},
-};
+use crate::typecheck::{Subst, Type, TypeVarContext};
 use im::HashMap;
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
-pub struct TyEnvironment {
-    bindings: HashMap<String, Spanned<AstType>>,
-}
+pub struct TypeEnvironment(HashMap<String, Type>);
 
-impl TyEnvironment {
+impl TypeEnvironment {
     pub fn empty() -> Self {
         Self::default()
     }
 
-    pub fn builtins() -> Self {
-        let mut env = Self::empty();
-        env.set("+", parse_type("num -> num -> num").unwrap());
-        env.set("-", parse_type("num -> num -> num").unwrap());
-        env.set("*", parse_type("num -> num -> num").unwrap());
-        env.set("/", parse_type("num -> num -> num").unwrap());
-        env.set("==", parse_type("num -> num -> bool").unwrap());
-        env.set("<", parse_type("num -> num -> bool").unwrap());
-        env.set(">", parse_type("num -> num -> bool").unwrap());
-        env.set("&&", parse_type("bool -> bool -> bool").unwrap());
-        env.set("||", parse_type("bool -> bool -> bool").unwrap());
-        env.set("!", parse_type("bool -> bool").unwrap());
-        env
+    pub fn get(&self, name: impl Into<String>) -> Option<&Type> {
+        self.0.get(&name.into())
     }
 
-    pub fn get(&self, name: impl Into<String>) -> Option<&Spanned<AstType>> {
-        self.bindings.get(&name.into())
+    pub fn set(&mut self, name: impl Into<String>, value: Type) {
+        self.0.insert(name.into(), value);
     }
 
-    pub fn set(&mut self, name: impl Into<String>, value: Spanned<AstType>) {
-        self.bindings.insert(name.into(), value);
-    }
-
-    pub fn extend(&self, name: impl Into<String>, value: Spanned<AstType>) -> Self {
+    pub fn extend(&self, name: impl Into<String>, value: Type) -> Self {
         let mut new_env = self.clone();
         new_env.set(name, value);
         new_env
     }
+
+    pub fn iter(&self) -> im::hashmap::Iter<String, Type> {
+        self.0.iter()
+    }
+
+    pub fn builtins(ctx: &mut TypeVarContext) -> Self {
+        let mut env = Self::empty();
+        env.set("Num", Type::Num);
+        env.set("Bool", Type::Bool);
+
+        for name in ["+", "-", "*", "/"] {
+            env.set(name, Type::nary_func([Type::Num, Type::Num], Type::Num));
+        }
+        for name in [">", "<", ">=", "<="] {
+            env.set(name, Type::nary_func([Type::Num, Type::Num], Type::Bool));
+        }
+        for name in ["==", "!="] {
+            let a = ctx.fresh();
+            env.set(
+                name,
+                Type::nary_func([Type::Var(a), Type::Var(a)], Type::Bool),
+            );
+        }
+        for name in ["&&", "||"] {
+            env.set(name, Type::nary_func([Type::Bool, Type::Bool], Type::Bool));
+        }
+        env
+    }
+
+    pub fn apply(self, subst: &Subst) -> Self {
+        Self(
+            self.into_iter()
+                .map(|(name, ty)| (name, subst.apply(ty)))
+                .collect(),
+        )
+    }
 }
 
-impl<'a> IntoIterator for &'a TyEnvironment {
-    type Item = (&'a String, &'a Spanned<AstType>);
-    type IntoIter = im::hashmap::Iter<'a, String, Spanned<AstType>>;
+impl IntoIterator for TypeEnvironment {
+    type Item = (String, Type);
+    type IntoIter = im::hashmap::ConsumingIter<(String, Type)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.bindings.iter()
+        self.0.into_iter()
     }
 }
