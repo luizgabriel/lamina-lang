@@ -13,7 +13,7 @@ use super::{Environment, InterpreterError};
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Literal(Literal),
-    Tuple(im::Vector<Value>),
+    Tuple(Vec<Value>),
     Closure {
         param: Spanned<String>,
         body: Spanned<AstExpr>,
