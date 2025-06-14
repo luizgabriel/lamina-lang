@@ -24,10 +24,10 @@ impl Subst {
         new_subst
     }
 
-    pub fn compose(self, other: Self) -> Self {
-        self.0
-            .into_iter()
-            .fold(other, |acc, (var, ty)| acc.extend(var, acc.apply(ty)))
+    pub fn compose(&self, other: &Self) -> Self {
+        self.0.iter().fold(other.clone(), |acc, (var, ty)| {
+            acc.extend(*var, acc.apply(ty.clone()))
+        })
     }
 
     pub fn apply(&self, ty: Type) -> Type {
@@ -73,7 +73,7 @@ pub fn unify(ty1: Type, ty2: Type) -> Result<Subst, TypeError> {
         (Type::Fn(a1, b1), Type::Fn(a2, b2)) => {
             let s1 = unify(*a1, *a2)?;
             let s2 = unify(s1.apply(*b1), s1.apply(*b2))?;
-            Ok(s2.compose(s1))
+            Ok(s2.compose(&s1))
         }
 
         // Tuple types unify if they have the same length and their components unify
@@ -82,7 +82,7 @@ pub fn unify(ty1: Type, ty2: Type) -> Result<Subst, TypeError> {
             .zip(items2)
             .try_fold(Subst::empty(), |acc, (t1, t2)| {
                 let s = unify(acc.apply(t1), acc.apply(t2))?;
-                Ok(s.compose(acc))
+                Ok(s.compose(&acc))
             }),
 
         // All other cases fail to unify

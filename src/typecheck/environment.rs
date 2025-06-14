@@ -51,10 +51,11 @@ impl TypeEnvironment {
         env
     }
 
-    pub fn apply(self, subst: &Subst) -> Self {
+    pub fn apply(&self, subst: &Subst) -> Self {
         Self(
-            self.into_iter()
-                .map(|(name, ty)| (name, subst.apply(ty)))
+            self.0
+                .iter()
+                .map(|(name, ty)| (name.clone(), subst.apply(ty.clone())))
                 .collect(),
         )
     }
