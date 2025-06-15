@@ -1,12 +1,12 @@
 use crate::{
     lexer::Spanned,
-    parser::{AstExpr, AstExprNode, AstStmt, AstStmtNode},
-    typecheck::{unify, Subst, Type, TypeEnvironment, TypeError, TypeVarContext},
+    parser::{AstExpr, AstStmt},
+    typecheck::{unify, Subst, Type, TypeEnv, TypeError, TypeVarContext},
 };
 
 fn infer_tuple(
     items: &[Spanned<AstExpr>],
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
     let mut types = Vec::with_capacity(items.len());
@@ -21,7 +21,7 @@ fn infer_tuple(
     Ok((Type::Tuple(types), subst))
 }
 
-fn infer_ident(name: &str, env: &TypeEnvironment) -> Result<(Type, Subst), TypeError> {
+fn infer_ident(name: &str, env: &TypeEnv) -> Result<(Type, Subst), TypeError> {
     env.get(name)
         .cloned()
         .ok_or(TypeError::unbound_variable(name))
@@ -31,7 +31,7 @@ fn infer_ident(name: &str, env: &TypeEnvironment) -> Result<(Type, Subst), TypeE
 fn infer_lambda(
     param: &Spanned<String>,
     body: &Spanned<AstExpr>,
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
     let param_ty = Type::Var(ctx.fresh());
@@ -44,7 +44,7 @@ fn infer_lambda(
 fn infer_fn_app(
     lhs: &Spanned<AstExpr>,
     rhs: &Spanned<AstExpr>,
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
     let (lhs_ty, s1) = infer(&lhs.0, env, ctx)?;
@@ -63,7 +63,7 @@ fn infer_op_app(
     op: &Spanned<String>,
     lhs: &Spanned<AstExpr>,
     rhs: &Spanned<AstExpr>,
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
     let op_expr = AstExpr::ident(&op.0);
@@ -77,7 +77,7 @@ fn infer_if(
     condition: &Spanned<AstExpr>,
     then_branch: &Spanned<AstExpr>,
     else_branch: &Spanned<AstExpr>,
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
     let (cond_ty, s1) = infer(&condition.0, env, ctx)?;
@@ -99,16 +99,16 @@ fn infer_if(
 
 fn infer_stmt(
     stmt: &AstStmt,
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
-) -> Result<(TypeEnvironment, Subst), TypeError> {
-    match &stmt.0 {
-        AstStmtNode::Assign { name, body } => {
+) -> Result<(TypeEnv, Subst), TypeError> {
+    match &stmt {
+        AstStmt::Assign { name, body } => {
             let (ty, s) = infer(&body.0, env, ctx)?;
             let new_env = env.extend(name.0.clone(), ty);
             Ok((new_env, s))
         }
-        AstStmtNode::FnDef { name, params, body } => {
+        AstStmt::FnDef { name, params, body } => {
             let lambda = params.iter().rev().fold(body.clone(), |acc, param| {
                 let span = param.1.start..acc.1.end;
                 (AstExpr::lambda(param.clone(), acc), span.into())
@@ -118,7 +118,7 @@ fn infer_stmt(
             let new_env = env.extend(name.0.clone(), ty);
             Ok((new_env, s))
         }
-        AstStmtNode::Expr(expr) => {
+        AstStmt::Expr(expr) => {
             let (_, s) = infer(&expr.0, env, ctx)?;
             Ok((env.clone(), s))
         }
@@ -128,7 +128,7 @@ fn infer_stmt(
 fn infer_block(
     statements: &[Spanned<AstStmt>],
     expr: Option<&Spanned<AstExpr>>,
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
     let mut env = env.clone();
@@ -150,30 +150,28 @@ fn infer_block(
 
 pub fn infer(
     expr: &AstExpr,
-    env: &TypeEnvironment,
+    env: &TypeEnv,
     ctx: &mut TypeVarContext,
 ) -> Result<(Type, Subst), TypeError> {
-    match &expr.0 {
-        AstExprNode::Literal(literal) => Ok((literal.into(), Subst::empty())),
+    match &expr {
+        AstExpr::Literal(literal) => Ok((literal.into(), Subst::empty())),
 
-        AstExprNode::Ident(name) => infer_ident(name, env),
+        AstExpr::Ident(name) => infer_ident(name, env),
 
-        AstExprNode::Tuple(items) => infer_tuple(items, env, ctx),
+        AstExpr::Tuple(items) => infer_tuple(items, env, ctx),
 
-        AstExprNode::Lambda { param, body } => infer_lambda(param, body, env, ctx),
+        AstExpr::Lambda { param, body } => infer_lambda(param, body, env, ctx),
 
-        AstExprNode::FnApp { lhs, rhs } => infer_fn_app(lhs, rhs, env, ctx),
+        AstExpr::FnApp { lhs, rhs } => infer_fn_app(lhs, rhs, env, ctx),
 
-        AstExprNode::OpApp { op, lhs, rhs } => infer_op_app(op, lhs, rhs, env, ctx),
+        AstExpr::OpApp { op, lhs, rhs } => infer_op_app(op, lhs, rhs, env, ctx),
 
-        AstExprNode::If {
+        AstExpr::If {
             condition,
             then_branch,
             else_branch,
         } => infer_if(condition, then_branch, else_branch, env, ctx),
 
-        AstExprNode::Block { statements, expr } => {
-            infer_block(statements, expr.as_deref(), env, ctx)
-        }
+        AstExpr::Block { statements, expr } => infer_block(statements, expr.as_deref(), env, ctx),
     }
 }

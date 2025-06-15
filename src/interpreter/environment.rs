@@ -1,15 +1,15 @@
 use super::Value;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Environment(im::HashMap<String, Value>);
+pub struct ValueEnv(im::HashMap<String, Value>);
 
-impl Environment {
+impl ValueEnv {
     pub fn empty() -> Self {
         Self(im::HashMap::new())
     }
 
     pub fn builtins() -> Self {
-        let mut env = Environment::empty();
+        let mut env = ValueEnv::empty();
 
         // Add built-in functions as native functions
         env.set("+", Value::BuiltInFn("+".to_string()));
@@ -45,7 +45,7 @@ impl Environment {
     }
 }
 
-impl IntoIterator for Environment {
+impl IntoIterator for ValueEnv {
     type Item = (String, Value);
     type IntoIter = im::hashmap::ConsumingIter<(String, Value)>;
 

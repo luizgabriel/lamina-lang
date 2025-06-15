@@ -8,7 +8,7 @@ use crate::{
     parser::{AstExpr, Literal},
 };
 
-use super::{Environment, InterpreterError};
+use super::{ValueEnv, InterpreterError};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
@@ -17,7 +17,7 @@ pub enum Value {
     Closure {
         param: Spanned<String>,
         body: Spanned<AstExpr>,
-        env: Rc<RefCell<Environment>>,
+        env: Rc<RefCell<ValueEnv>>,
     },
     BuiltInFn(String),
 }

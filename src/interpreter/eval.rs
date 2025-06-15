@@ -1,20 +1,20 @@
-use crate::parser::{AstExpr, AstExprNode, AstStmt, AstStmtNode, Literal};
+use crate::parser::{AstExpr, AstStmt, Literal};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::{Environment, InterpreterError, Value};
+use super::{InterpreterError, Value, ValueEnv};
 
-pub fn eval_stmt(stmt: AstStmt, env: &Environment) -> Result<Environment, InterpreterError> {
-    match stmt.0 {
-        AstStmtNode::Expr(expr) => {
+pub fn eval_stmt(stmt: AstStmt, env: &ValueEnv) -> Result<ValueEnv, InterpreterError> {
+    match stmt {
+        AstStmt::Expr(expr) => {
             let _ = eval(expr.0, env)?;
             Ok(env.clone())
         }
-        AstStmtNode::Assign { name, body } => {
+        AstStmt::Assign { name, body } => {
             let value = eval(body.0, env)?;
             Ok(env.extend(&name.0, value))
         }
-        AstStmtNode::FnDef { name, params, body } => {
+        AstStmt::FnDef { name, params, body } => {
             debug_assert!(
                 !params.is_empty(),
                 "Function definition must have at least one argument"
@@ -46,29 +46,29 @@ pub fn eval_stmt(stmt: AstStmt, env: &Environment) -> Result<Environment, Interp
     }
 }
 
-pub fn eval(expr: AstExpr, env: &Environment) -> Result<Value, InterpreterError> {
-    match expr.0 {
-        AstExprNode::Ident(name) => env
+pub fn eval(expr: AstExpr, env: &ValueEnv) -> Result<Value, InterpreterError> {
+    match expr {
+        AstExpr::Ident(name) => env
             .get(&name)
             .cloned()
             .ok_or(InterpreterError::unbound_variable(name)),
 
-        AstExprNode::Literal(literal) => Ok(literal.into()),
+        AstExpr::Literal(literal) => Ok(literal.into()),
 
-        AstExprNode::Tuple(items) => {
+        AstExpr::Tuple(items) => {
             let values: Result<Vec<_>, _> =
                 items.into_iter().map(|item| eval(item.0, env)).collect();
 
             Ok(Value::Tuple(values?))
         }
 
-        AstExprNode::Lambda { param, body } => Ok(Value::Closure {
+        AstExpr::Lambda { param, body } => Ok(Value::Closure {
             param,
             body: *body,
             env: Rc::new(RefCell::new(env.clone())),
         }),
 
-        AstExprNode::Block { statements, expr } => {
+        AstExpr::Block { statements, expr } => {
             let env = statements
                 .into_iter()
                 .try_fold(env.clone(), |env, stmt| eval_stmt(stmt.0, &env))?;
@@ -76,13 +76,13 @@ pub fn eval(expr: AstExpr, env: &Environment) -> Result<Value, InterpreterError>
             expr.map(|expr| eval(expr.0, &env)).unwrap_or(Ok(().into()))
         }
 
-        AstExprNode::FnApp { lhs, rhs } => {
+        AstExpr::FnApp { lhs, rhs } => {
             let func = eval(lhs.0, env)?;
             let arg = eval(rhs.0, env)?;
             apply_function(func, arg)
         }
 
-        AstExprNode::If {
+        AstExpr::If {
             condition,
             then_branch,
             else_branch,
@@ -96,7 +96,7 @@ pub fn eval(expr: AstExpr, env: &Environment) -> Result<Value, InterpreterError>
             }
         }
 
-        AstExprNode::OpApp { op, lhs, rhs } => {
+        AstExpr::OpApp { op, lhs, rhs } => {
             let lhs_value = eval(lhs.0, env)?;
             let rhs_value = eval(rhs.0, env)?;
             execute_binary_op(&op.0, lhs_value, rhs_value)
@@ -134,18 +134,18 @@ fn apply_function(func: Value, arg: Value) -> Result<Value, InterpreterError> {
 
 /// Substitute a value for all occurrences of a variable in an expression
 fn substitute_value(expr: AstExpr, var_name: &str, value: &Value) -> AstExpr {
-    match expr.0 {
-        AstExprNode::Ident(name) if name == var_name => value_to_expr(value),
-        AstExprNode::Ident(name) => AstExpr::ident(name),
-        AstExprNode::Literal(lit) => AstExpr::literal(lit),
-        AstExprNode::Tuple(items) => {
+    match expr {
+        AstExpr::Ident(name) if name == var_name => value_to_expr(value),
+        AstExpr::Ident(name) => AstExpr::ident(name),
+        AstExpr::Literal(lit) => AstExpr::literal(lit),
+        AstExpr::Tuple(items) => {
             let items = items
                 .into_iter()
                 .map(|(expr, span)| (substitute_value(expr, var_name, value), span));
 
             AstExpr::tuple(items)
         }
-        AstExprNode::Lambda { param: arg, body } => {
+        AstExpr::Lambda { param: arg, body } => {
             if arg.0 == var_name {
                 return AstExpr::lambda(arg, *body);
             }
@@ -153,19 +153,19 @@ fn substitute_value(expr: AstExpr, var_name: &str, value: &Value) -> AstExpr {
             let body = (substitute_value(body.0, var_name, value), body.1);
             AstExpr::lambda(arg, body)
         }
-        AstExprNode::FnApp { lhs, rhs } => {
+        AstExpr::FnApp { lhs, rhs } => {
             let lhs = (substitute_value(lhs.0, var_name, value), lhs.1);
             let rhs = (substitute_value(rhs.0, var_name, value), rhs.1);
 
             AstExpr::fn_app(lhs, rhs)
         }
-        AstExprNode::OpApp { op, lhs, rhs } => {
+        AstExpr::OpApp { op, lhs, rhs } => {
             let lhs = (substitute_value(lhs.0, var_name, value), lhs.1);
             let rhs = (substitute_value(rhs.0, var_name, value), rhs.1);
 
             AstExpr::op_app(op, lhs, rhs)
         }
-        AstExprNode::Block { statements, expr } => {
+        AstExpr::Block { statements, expr } => {
             let statements = statements
                 .into_iter()
                 .map(|(stmt, span)| (substitute_value_in_stmt(stmt, var_name, value), span));
@@ -174,7 +174,7 @@ fn substitute_value(expr: AstExpr, var_name: &str, value: &Value) -> AstExpr {
 
             AstExpr::block(statements, expr)
         }
-        AstExprNode::If {
+        AstExpr::If {
             condition,
             then_branch,
             else_branch,
@@ -198,12 +198,12 @@ fn substitute_value(expr: AstExpr, var_name: &str, value: &Value) -> AstExpr {
 
 /// Substitute a value for all occurrences of a variable in a statement
 fn substitute_value_in_stmt(stmt: AstStmt, var_name: &str, value: &Value) -> AstStmt {
-    match stmt.0 {
-        AstStmtNode::Expr(expr) => {
+    match stmt {
+        AstStmt::Expr(expr) => {
             let expr = (substitute_value(expr.0, var_name, value), expr.1);
             AstStmt::expr(expr)
         }
-        AstStmtNode::Assign { name, body } => {
+        AstStmt::Assign { name, body } => {
             // Don't substitute if the let binding shadows our variable
             if name.0 == var_name {
                 return AstStmt::assign(name, body);
@@ -212,7 +212,7 @@ fn substitute_value_in_stmt(stmt: AstStmt, var_name: &str, value: &Value) -> Ast
             let body = (substitute_value(body.0, var_name, value), body.1);
             AstStmt::assign(name, body)
         }
-        AstStmtNode::FnDef {
+        AstStmt::FnDef {
             name,
             params: args,
             body,
@@ -247,17 +247,17 @@ fn value_to_expr(value: &Value) -> AstExpr {
 }
 
 /// Perform partial evaluation on a statement
-fn partial_eval_stmt(stmt: AstStmt, env: &Environment) -> Result<AstStmt, InterpreterError> {
-    match stmt.0 {
-        AstStmtNode::Expr(expr) => {
+fn partial_eval_stmt(stmt: AstStmt, env: &ValueEnv) -> Result<AstStmt, InterpreterError> {
+    match stmt {
+        AstStmt::Expr(expr) => {
             let eval_expr = partial_eval(expr.0, env)?;
             Ok(AstStmt::expr((eval_expr, expr.1)))
         }
-        AstStmtNode::Assign { name, body } => {
+        AstStmt::Assign { name, body } => {
             let eval_body = partial_eval(body.0, env)?;
             Ok(AstStmt::assign(name, (eval_body, body.1)))
         }
-        AstStmtNode::FnDef {
+        AstStmt::FnDef {
             name,
             params: args,
             body,
@@ -269,17 +269,15 @@ fn partial_eval_stmt(stmt: AstStmt, env: &Environment) -> Result<AstStmt, Interp
 }
 
 /// Perform partial evaluation on an expression, trying to compute what can be computed
-fn partial_eval(expr: AstExpr, env: &Environment) -> Result<AstExpr, InterpreterError> {
-    match expr.0 {
-        AstExprNode::OpApp { op, lhs, rhs } => {
+fn partial_eval(expr: AstExpr, env: &ValueEnv) -> Result<AstExpr, InterpreterError> {
+    match expr {
+        AstExpr::OpApp { op, lhs, rhs } => {
             // Try to evaluate operands
             let lhs_eval = partial_eval(lhs.0, env)?;
             let rhs_eval = partial_eval(rhs.0, env)?;
 
             // If both operands are literals, compute the result
-            if let (AstExprNode::Literal(lhs_lit), AstExprNode::Literal(rhs_lit)) =
-                (&lhs_eval.0, &rhs_eval.0)
-            {
+            if let (AstExpr::Literal(lhs_lit), AstExpr::Literal(rhs_lit)) = (&lhs_eval, &rhs_eval) {
                 let lhs_val = (*lhs_lit).into();
                 let rhs_val = (*rhs_lit).into();
 
@@ -291,7 +289,7 @@ fn partial_eval(expr: AstExpr, env: &Environment) -> Result<AstExpr, Interpreter
 
             Ok(AstExpr::op_app(op, (lhs_eval, lhs.1), (rhs_eval, rhs.1)))
         }
-        AstExprNode::If {
+        AstExpr::If {
             condition,
             then_branch,
             else_branch,
@@ -299,7 +297,7 @@ fn partial_eval(expr: AstExpr, env: &Environment) -> Result<AstExpr, Interpreter
             let cond_eval = partial_eval(condition.0, env)?;
 
             // If condition is a literal boolean, choose the appropriate branch
-            if let AstExprNode::Literal(Literal::Bool(b)) = cond_eval.0 {
+            if let AstExpr::Literal(Literal::Bool(b)) = cond_eval {
                 return partial_eval(if b { then_branch.0 } else { else_branch.0 }, env);
             }
 
@@ -309,7 +307,7 @@ fn partial_eval(expr: AstExpr, env: &Environment) -> Result<AstExpr, Interpreter
 
             Ok(AstExpr::if_expr(condition, then_branch, else_branch))
         }
-        AstExprNode::Tuple(items) => {
+        AstExpr::Tuple(items) => {
             let eval_items: Result<Vec<_>, _> = items
                 .into_iter()
                 .map(|(item, span)| partial_eval(item, env).map(|e| (e, span)))
@@ -317,13 +315,13 @@ fn partial_eval(expr: AstExpr, env: &Environment) -> Result<AstExpr, Interpreter
 
             Ok(AstExpr::tuple(eval_items?))
         }
-        AstExprNode::FnApp { lhs, rhs } => {
+        AstExpr::FnApp { lhs, rhs } => {
             let lhs_eval = partial_eval(lhs.0, env)?;
             let rhs_eval = partial_eval(rhs.0, env)?;
 
             Ok(AstExpr::fn_app((lhs_eval, lhs.1), (rhs_eval, rhs.1)))
         }
-        AstExprNode::Block { statements, expr } => {
+        AstExpr::Block { statements, expr } => {
             // Partially evaluate each statement and the final expression
             let eval_statements = statements
                 .into_iter()
@@ -336,7 +334,7 @@ fn partial_eval(expr: AstExpr, env: &Environment) -> Result<AstExpr, Interpreter
 
             Ok(AstExpr::block(eval_statements, eval_expr))
         }
-        AstExprNode::Lambda { .. } | AstExprNode::Ident(_) | AstExprNode::Literal(_) => {
+        AstExpr::Lambda { .. } | AstExpr::Ident(_) | AstExpr::Literal(_) => {
             // Lambdas, identifiers, and literals are already in their simplest form
             Ok(expr.clone())
         }
@@ -353,7 +351,7 @@ fn apply_builtin(op: &str, first_arg: Value) -> Result<Value, InterpreterError> 
                 param: ("__second".to_string(), (0..0).into()),
                 body: (dummy_expr, (0..0).into()),
                 env: Rc::new(RefCell::new(
-                    Environment::empty()
+                    ValueEnv::empty()
                         .extend("__first", first_arg)
                         .extend("__op", Value::builtin(op)),
                 )),

@@ -50,22 +50,18 @@ impl Display for Literal {
 
 /// Generic AST statement node that can be parameterized over different expression types
 #[derive(Clone, Debug, PartialEq)]
-pub enum AstStmtNode<T> {
+pub enum AstStmt {
     FnDef {
         name: Spanned<String>,
         params: SmallVec<[Spanned<String>; 4]>,
-        body: Spanned<T>,
+        body: Spanned<AstExpr>,
     },
     Assign {
         name: Spanned<String>,
-        body: Spanned<T>,
+        body: Spanned<AstExpr>,
     },
-    Expr(Spanned<T>),
+    Expr(Spanned<AstExpr>),
 }
-
-/// Untyped AST statement
-#[derive(Clone, Debug, PartialEq)]
-pub struct AstStmt(pub AstStmtNode<AstExpr>);
 
 impl AstStmt {
     pub fn fn_def(
@@ -73,110 +69,106 @@ impl AstStmt {
         params: impl IntoIterator<Item = Spanned<String>>,
         body: Spanned<AstExpr>,
     ) -> Self {
-        AstStmt(AstStmtNode::FnDef {
+        AstStmt::FnDef {
             name,
             params: params.into_iter().collect(),
             body,
-        })
+        }
     }
 
     pub fn assign(name: Spanned<String>, body: Spanned<AstExpr>) -> Self {
-        AstStmt(AstStmtNode::Assign { name, body })
+        AstStmt::Assign { name, body }
     }
 
     pub fn expr(expr: Spanned<AstExpr>) -> Self {
-        AstStmt(AstStmtNode::Expr(expr))
+        AstStmt::Expr(expr)
     }
 }
 
 /// Generic AST expression node that can be parameterized over different recursion types
 #[derive(Clone, Debug, PartialEq)]
-pub enum AstExprNode<T, S> {
+pub enum AstExpr {
     Ident(String),
     Literal(Literal),
-    Tuple(Vec<Spanned<T>>),
+    Tuple(Vec<Spanned<AstExpr>>),
     Lambda {
         param: Spanned<String>,
-        body: Box<Spanned<T>>,
+        body: Box<Spanned<AstExpr>>,
     },
     FnApp {
-        lhs: Box<Spanned<T>>,
-        rhs: Box<Spanned<T>>,
+        lhs: Box<Spanned<AstExpr>>,
+        rhs: Box<Spanned<AstExpr>>,
     },
     OpApp {
         op: Spanned<String>,
-        lhs: Box<Spanned<T>>,
-        rhs: Box<Spanned<T>>,
+        lhs: Box<Spanned<AstExpr>>,
+        rhs: Box<Spanned<AstExpr>>,
     },
     Block {
-        statements: Vec<Spanned<S>>,
-        expr: Option<Box<Spanned<T>>>,
+        statements: Vec<Spanned<AstStmt>>,
+        expr: Option<Box<Spanned<AstExpr>>>,
     },
     If {
-        condition: Box<Spanned<T>>,
-        then_branch: Box<Spanned<T>>,
-        else_branch: Box<Spanned<T>>,
+        condition: Box<Spanned<AstExpr>>,
+        then_branch: Box<Spanned<AstExpr>>,
+        else_branch: Box<Spanned<AstExpr>>,
     },
 }
 
-/// Untyped AST expression
-#[derive(Clone, Debug, PartialEq)]
-pub struct AstExpr(pub AstExprNode<AstExpr, AstStmt>);
-
 impl From<f64> for AstExpr {
     fn from(n: f64) -> Self {
-        Self(AstExprNode::Literal(n.into()))
+        AstExpr::Literal(n.into())
     }
 }
 
 impl From<bool> for AstExpr {
     fn from(b: bool) -> Self {
-        Self(AstExprNode::Literal(b.into()))
+        AstExpr::Literal(b.into())
     }
 }
 
 impl From<()> for AstExpr {
     fn from(_: ()) -> Self {
-        Self(AstExprNode::Literal(().into()))
+        AstExpr::Literal(().into())
     }
 }
 
 impl AstExpr {
     pub fn literal(literal: impl Into<Literal>) -> Self {
-        Self(AstExprNode::Literal(literal.into()))
+        AstExpr::Literal(literal.into())
     }
 
     pub fn ident(name: impl Into<String>) -> Self {
-        Self(AstExprNode::Ident(name.into()))
+        AstExpr::Ident(name.into())
     }
 
     pub fn tuple(items: impl IntoIterator<Item = Spanned<Self>>) -> Self {
-        Self(AstExprNode::Tuple(items.into_iter().collect()))
+        AstExpr::Tuple(items.into_iter().collect())
     }
 
     pub fn fn_app(lhs: Spanned<Self>, rhs: Spanned<Self>) -> Self {
-        Self(AstExprNode::FnApp {
+        AstExpr::FnApp {
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
-        })
+        }
     }
 
     pub fn op_app(op: Spanned<String>, lhs: Spanned<Self>, rhs: Spanned<Self>) -> Self {
-        Self(AstExprNode::OpApp {
+        AstExpr::OpApp {
             op,
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
-        })
+        }
     }
 
     pub fn block(
         statements: impl IntoIterator<Item = Spanned<AstStmt>>,
         expr: Option<Spanned<Self>>,
     ) -> Self {
-        Self(AstExprNode::Block {
+        AstExpr::Block {
             statements: statements.into_iter().collect(),
             expr: expr.map(Box::new),
-        })
+        }
     }
 
     pub fn if_expr(
@@ -184,27 +176,27 @@ impl AstExpr {
         then_branch: Spanned<Self>,
         else_branch: Spanned<Self>,
     ) -> Self {
-        Self(AstExprNode::If {
+        AstExpr::If {
             condition: Box::new(condition),
             then_branch: Box::new(then_branch),
             else_branch: Box::new(else_branch),
-        })
+        }
     }
 
     pub fn lambda(arg: Spanned<String>, body: Spanned<AstExpr>) -> Self {
-        Self(AstExprNode::Lambda {
+        AstExpr::Lambda {
             param: arg,
             body: Box::new(body),
-        })
+        }
     }
 }
 
-impl<T: Display, S: Display> Display for AstExprNode<T, S> {
+impl Display for AstExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AstExprNode::Ident(name) => write!(f, "{}", name),
-            AstExprNode::Literal(literal) => write!(f, "{}", literal),
-            AstExprNode::Tuple(items) => write!(
+            AstExpr::Ident(name) => write!(f, "{}", name),
+            AstExpr::Literal(literal) => write!(f, "{}", literal),
+            AstExpr::Tuple(items) => write!(
                 f,
                 "({})",
                 items
@@ -213,9 +205,9 @@ impl<T: Display, S: Display> Display for AstExprNode<T, S> {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            AstExprNode::FnApp { lhs, rhs } => write!(f, "({} {})", lhs.0, rhs.0),
-            AstExprNode::OpApp { op, lhs, rhs } => write!(f, "({} {} {})", lhs.0, op.0, rhs.0),
-            AstExprNode::Block { statements, expr } => write!(
+            AstExpr::FnApp { lhs, rhs } => write!(f, "({} {})", lhs.0, rhs.0),
+            AstExpr::OpApp { op, lhs, rhs } => write!(f, "({} {} {})", lhs.0, op.0, rhs.0),
+            AstExpr::Block { statements, expr } => write!(
                 f,
                 "{{ {}{} }}",
                 statements
@@ -227,7 +219,7 @@ impl<T: Display, S: Display> Display for AstExprNode<T, S> {
                     .map(|e| format!("; {}", e.0))
                     .unwrap_or_default(),
             ),
-            AstExprNode::If {
+            AstExpr::If {
                 condition,
                 then_branch,
                 else_branch,
@@ -236,15 +228,15 @@ impl<T: Display, S: Display> Display for AstExprNode<T, S> {
                 "if ({}) then ({}) else ({})",
                 condition.0, then_branch.0, else_branch.0
             ),
-            AstExprNode::Lambda { param: arg, body } => write!(f, "{} -> ({})", arg.0, body.0),
+            AstExpr::Lambda { param: arg, body } => write!(f, "{} -> ({})", arg.0, body.0),
         }
     }
 }
 
-impl<T: Display> Display for AstStmtNode<T> {
+impl Display for AstStmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AstStmtNode::FnDef {
+            AstStmt::FnDef {
                 name,
                 params: args,
                 body,
@@ -258,20 +250,8 @@ impl<T: Display> Display for AstStmtNode<T> {
                     .join(", "),
                 body.0
             ),
-            AstStmtNode::Assign { name, body } => write!(f, "{} = {}", name.0, body.0),
-            AstStmtNode::Expr(expr) => write!(f, "{}", expr.0),
+            AstStmt::Assign { name, body } => write!(f, "{} = {}", name.0, body.0),
+            AstStmt::Expr(expr) => write!(f, "{}", expr.0),
         }
-    }
-}
-
-impl Display for AstStmt {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Display for AstExpr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
     }
 }

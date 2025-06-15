@@ -2,9 +2,9 @@ use crate::typecheck::{Subst, Type, TypeVarContext};
 use im::HashMap;
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
-pub struct TypeEnvironment(HashMap<String, Type>);
+pub struct TypeEnv(HashMap<String, Type>);
 
-impl TypeEnvironment {
+impl TypeEnv {
     pub fn empty() -> Self {
         Self::default()
     }
@@ -61,7 +61,7 @@ impl TypeEnvironment {
     }
 }
 
-impl IntoIterator for TypeEnvironment {
+impl IntoIterator for TypeEnv {
     type Item = (String, Type);
     type IntoIter = im::hashmap::ConsumingIter<(String, Type)>;
 

@@ -1,12 +1,12 @@
 use k9::assert_err;
 use lamina_lang::{
-    interpreter::{eval, Environment, InterpreterError, Value},
+    interpreter::{eval, InterpreterError, Value, ValueEnv},
     parser::parse_expr,
 };
 
 pub fn parse_and_evaluate(input: &str) -> Result<Value, InterpreterError> {
     let expr = parse_expr(input).expect("Failed to parse input");
-    eval(expr.0, &Environment::builtins())
+    eval(expr.0, &ValueEnv::builtins())
 }
 
 // Macro to simplify testing interpreter expressions

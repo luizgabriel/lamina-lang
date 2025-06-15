@@ -1,8 +1,8 @@
 use ariadne::Source;
 use lamina_lang::{
-    interpreter::{eval, eval_stmt, Environment},
+    interpreter::{eval, eval_stmt, ValueEnv},
     lexer::lex_input,
-    parser::{parse_stmt, AstStmt, AstStmtNode, ParseError},
+    parser::{parse_stmt, AstStmt, ParseError},
     repl::{parse_command, print_env, print_help, print_tokens, ReplCommand, ReplState},
     typecheck::infer as infer_type,
 };
@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
 
             match parse_command(&input) {
                 Ok(ReplCommand::Eval(expr)) => match parse_stmt(&prepare_input(expr)) {
-                    Ok((AstStmt(AstStmtNode::Expr(expr)), _)) => match eval(expr.0, &state.env) {
+                    Ok((AstStmt::Expr(expr), _)) => match eval(expr.0, &state.env) {
                         Ok(value) => println!("{}", value),
                         Err(err) => println!("Evaluation error: {err}"),
                     },
@@ -65,7 +65,7 @@ fn main() -> anyhow::Result<()> {
                     }
                 },
                 Ok(ReplCommand::PrintType(expr)) => match parse_stmt(&prepare_input(expr)) {
-                    Ok((AstStmt(AstStmtNode::Expr(expr)), _)) => {
+                    Ok((AstStmt::Expr(expr), _)) => {
                         let (inferred_type, _) =
                             infer_type(&expr.0, &state.type_env, &mut state.type_ctx)?;
                         println!("{}", inferred_type);
@@ -109,7 +109,7 @@ fn main() -> anyhow::Result<()> {
                     print_env(&state.env);
                 }
                 Ok(ReplCommand::ClearEnv) => {
-                    state.env = Environment::builtins();
+                    state.env = ValueEnv::builtins();
                 }
                 Ok(ReplCommand::Quit) => {
                     break 'outer;

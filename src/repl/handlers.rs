@@ -1,9 +1,9 @@
 use crate::{
-    interpreter::Environment,
+    interpreter::ValueEnv,
     lexer::{Spanned, Token},
 };
 
-pub fn print_env(env: &Environment) {
+pub fn print_env(env: &ValueEnv) {
     println!("Environment bindings:");
     for (name, value) in env.iter().filter(|(_, value)| !value.is_builtin()) {
         println!("  {name} = {value}");

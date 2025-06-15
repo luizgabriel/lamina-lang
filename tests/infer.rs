@@ -1,13 +1,13 @@
 use k9::assert_err;
 use lamina_lang::{
     parser::parse_expr,
-    typecheck::{infer, Type, TypeEnvironment, TypeError, TypeVarContext},
+    typecheck::{infer, Type, TypeEnv, TypeError, TypeVarContext},
 };
 
 fn parse_and_infer(input: &str) -> Result<Type, TypeError> {
     let expr = parse_expr(input).expect("Failed to parse input");
     let mut ctx = TypeVarContext::default();
-    let env = TypeEnvironment::builtins(&mut ctx);
+    let env = TypeEnv::builtins(&mut ctx);
     let (ty, _) = infer(&expr.0, &env, &mut ctx)?;
 
     Ok(ty)
